@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAppStore } from './store/useAppStore'
 
+import LoginPage from './pages/Login'
 import OnboardingPage from './pages/Onboarding'
 import DashboardPage from './pages/Dashboard'
 import ClientsPage from './pages/Clients'
@@ -37,17 +38,19 @@ function AuthenticatedLayout() {
 }
 
 export default function App() {
-  const { business } = useAppStore()
-  const isOnboarded = Boolean(business?.id)
+  const { token, business } = useAppStore()
+  const isAuthenticated = Boolean(token && business?.id)
 
   return (
     <BrowserRouter>
       <AppShell>
-        {isOnboarded ? (
+        {isAuthenticated ? (
           <AuthenticatedLayout />
         ) : (
           <Routes>
-            <Route path="*" element={<OnboardingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<OnboardingPage />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         )}
       </AppShell>

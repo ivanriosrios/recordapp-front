@@ -1,3 +1,4 @@
+export { authApi } from './auth'
 export { businessesApi } from './businesses'
 export { clientsApi } from './clients'
 export { servicesApi } from './services'

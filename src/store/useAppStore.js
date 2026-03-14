@@ -4,24 +4,29 @@ import { persist } from 'zustand/middleware'
 export const useAppStore = create(
   persist(
     (set, get) => ({
-      // Estado global
-      business: null,      // { id, name, business_type, whatsapp_phone, plan, ... }
+      // Auth
+      token: null,
+      business: null,
       clients: [],
       services: [],
       templates: [],
 
-      // Acciones business
-      setBusiness: (business) => {
-        if (business?.id) {
-          localStorage.setItem('business_id', business.id)
-        }
-        set({ business })
+      // Auth actions
+      setAuth: ({ access_token, business_id, business_name, business }) => {
+        set({
+          token: access_token,
+          business: business || { id: business_id, name: business_name },
+        })
       },
 
-      clearBusiness: () => {
-        localStorage.removeItem('business_id')
-        set({ business: null, clients: [], services: [], templates: [] })
+      setBusiness: (business) => set({ business }),
+
+      logout: () => {
+        set({ token: null, business: null, clients: [], services: [], templates: [] })
       },
+
+      // Helpers
+      isAuthenticated: () => Boolean(get().token && get().business?.id),
 
       // Acciones clients
       setClients: (clients) => set({ clients }),
@@ -41,7 +46,10 @@ export const useAppStore = create(
     }),
     {
       name: 'recordapp-store',
-      partialize: (state) => ({ business: state.business }),
+      partialize: (state) => ({
+        token: state.token,
+        business: state.business,
+      }),
     }
   )
 )

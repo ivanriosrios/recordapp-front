@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { businessesApi } from '../api'
+import { Link } from 'react-router-dom'
+import { authApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -153,7 +154,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const { setBusiness } = useAppStore()
+  const { setAuth } = useAppStore()
 
   const handleFormChange = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -163,14 +164,14 @@ export default function OnboardingPage() {
     setLoading(true)
     setError(null)
     try {
-      const business = await businessesApi.create({
+      const data = await authApi.register({
         name: name.trim(),
         business_type: businessType,
         whatsapp_phone: form.whatsapp_phone.trim(),
         email: form.email.trim(),
-        password_hash: form.password, // el backend lo hashea
+        password: form.password,
       })
-      setBusiness(business)
+      setAuth(data)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -210,7 +211,14 @@ export default function OnboardingPage() {
         />
       )}
 
-      <p className="text-center text-text-subtle text-xs mt-8">
+      <p className="text-center text-text-muted text-sm mt-6">
+        ¿Ya tienes cuenta?{' '}
+        <Link to="/login" className="text-primary font-medium">
+          Inicia sesión
+        </Link>
+      </p>
+
+      <p className="text-center text-text-subtle text-xs mt-4">
         Al registrarte aceptas nuestros términos de uso y política de privacidad
       </p>
     </div>

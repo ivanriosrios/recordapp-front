@@ -5,7 +5,7 @@ import { useAppStore } from '../store/useAppStore'
 import { Button } from '../components/ui/Button'
 
 export default function SettingsPage() {
-  const { business, clearBusiness } = useAppStore()
+  const { business, logout } = useAppStore()
 
   return (
     <div>
@@ -16,7 +16,7 @@ export default function SettingsPage() {
           <p className="font-semibold">{business?.name || '—'}</p>
           <p className="text-text-muted text-xs mt-1">{business?.plan || 'free'}</p>
         </div>
-        <Button variant="danger" onClick={clearBusiness}>
+        <Button variant="danger" onClick={logout}>
           Cerrar sesión
         </Button>
       </div>

@@ -1,8 +1,6 @@
 import axios from 'axios'
 
-// Usa el backend como base por defecto (si la env no está definida)
 const rawBaseUrl = import.meta.env.VITE_API_URL || 'https://recordappback-production.up.railway.app'
-// Normaliza para evitar doble /api/v1 si la env ya lo trae
 const normalizedBaseUrl = rawBaseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '').replace(/\/api$/, '')
 
 const api = axios.create({
@@ -11,19 +9,27 @@ const api = axios.create({
   timeout: 15000,
 })
 
-// Interceptor: adjunta business_id desde localStorage si existe
+// Interceptor: adjunta Bearer token si existe
 api.interceptors.request.use((config) => {
-  const businessId = localStorage.getItem('business_id')
-  if (businessId) {
-    config.headers['X-Business-Id'] = businessId
+  const store = JSON.parse(localStorage.getItem('recordapp-store') || '{}')
+  const token = store?.state?.token
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
-// Interceptor: manejo de errores centralizado
+// Interceptor: manejo de errores + redirect a login si 401
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    if (error.response?.status === 401) {
+      // Limpiar store y redirigir a login
+      localStorage.removeItem('recordapp-store')
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        window.location.href = '/login'
+      }
+    }
     const message = error.response?.data?.detail || error.message || 'Error de conexión'
     return Promise.reject(new Error(message))
   }
