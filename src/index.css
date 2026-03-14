@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    @apply bg-bg text-text;
+    font-family: 'Inter', system-ui, sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  #root {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    background: #0a0c12;
+  }
+
+  /* Scrollbar minimalista */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+}
+
+@layer components {
+  /* Contenedor principal mobile */
+  .app-shell {
+    @apply w-full max-w-mobile bg-bg min-h-screen relative flex flex-col overflow-hidden;
+  }
+
+  /* Área de contenido con scroll (deja espacio para bottom nav) */
+  .page-content {
+    @apply flex-1 overflow-y-auto pb-20;
+  }
+
+  /* Inputs */
+  .input-base {
+    @apply w-full px-4 py-3.5 rounded-xl bg-card border border-border text-text text-sm
+           focus:outline-none focus:border-primary placeholder:text-text-muted
+           transition-colors duration-150;
+  }
+
+  /* Botón primario */
+  .btn-primary {
+    @apply w-full py-3.5 rounded-xl bg-primary text-white font-semibold text-sm
+           active:bg-primary-dark transition-colors duration-150 disabled:opacity-50;
+  }
+
+  /* Botón secundario */
+  .btn-secondary {
+    @apply w-full py-3.5 rounded-xl border border-border text-text-muted font-medium text-sm
+           active:bg-card transition-colors duration-150;
+  }
+
+  /* Card base */
+  .card {
+    @apply bg-card rounded-2xl p-4 border border-border;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+}
+
+@layer utilities {
+  /* Animación de entrada suave */
+  .fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Safe area para notch/home indicator */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+}
