@@ -244,6 +244,20 @@ function NewReminder() {
 
   const handleSubmit = async () => {
     if (!form.client_id || !form.service_id || !form.template_id) return
+    if (!form.next_send_date && !isPostService) {
+      setError('Selecciona una fecha de envío')
+      return
+    }
+
+    // Siempre enviar números, nunca null, para evitar 422 en el backend
+    const notifyDays = parseInt(form.notify_days_before || '0') || 0
+    const recurrence = form.type === 'recurring' && !isPostService
+      ? parseInt(form.recurrence_days || '0') || null
+      : null
+
+    // Para plantillas de post-servicio, usar la fecha actual si no viene una
+    const nextDate = (form.next_send_date || new Date().toISOString().slice(0, 10))
+
     setLoading(true)
     setError(null)
     try {
@@ -252,9 +266,9 @@ function NewReminder() {
         service_id: form.service_id,
         template_id: form.template_id,
         type: isPostService ? 'one_time' : form.type,
-        next_send_date: form.next_send_date || null,
-        recurrence_days: form.type === 'recurring' && !isPostService ? parseInt(form.recurrence_days) : null,
-        notify_days_before: isPostService ? null : parseInt(form.notify_days_before),
+        next_send_date: nextDate,
+        recurrence_days: recurrence,
+        notify_days_before: notifyDays,
       }
       await remindersApi.create(business.id, payload)
       navigate('/reminders')
