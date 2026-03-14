@@ -27,11 +27,49 @@ function RemindersList() {
   const [reminders, setReminders] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('active')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState(null)
+  const [selected, setSelected] = useState(new Set())
 
   useEffect(() => {
     if (!business?.id) return
     remindersApi.list(business.id).then(setReminders).finally(() => setLoading(false))
   }, [business?.id])
+
+  const toggleSelected = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const sendNow = async (id) => {
+    if (!business?.id) return
+    setSending(true)
+    setError(null)
+    try {
+      await remindersApi.sendNow(business.id, id)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const sendSelected = async () => {
+    if (!business?.id || selected.size === 0) return
+    setSending(true)
+    setError(null)
+    try {
+      await remindersApi.sendBulkNow(business.id, Array.from(selected))
+      setSelected(new Set())
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
 
   const getClient = (id) => clients.find((c) => c.id === id)
   const getService = (id) => services.find((s) => s.id === id)
@@ -40,6 +78,22 @@ function RemindersList() {
     tab === 'active' ? r.status === 'active' :
     tab === 'paused' ? r.status === 'paused' : true
   )
+
+  const sendAllActive = async () => {
+    if (!business?.id) return
+    const ids = reminders.filter((r) => r.status === 'active').map((r) => r.id)
+    if (ids.length === 0) return
+    setSending(true)
+    setError(null)
+    try {
+      await remindersApi.sendBulkNow(business.id, ids)
+      setSelected(new Set())
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
     <div>
@@ -74,6 +128,22 @@ function RemindersList() {
       </div>
 
       <div className="px-5 space-y-3">
+        {error && (
+          <div className="bg-danger/10 border border-danger/30 rounded-xl p-3 text-danger text-sm">{error}</div>
+        )}
+        {selected.size > 0 && (
+          <div className="flex items-center justify-between bg-card border border-border rounded-xl px-3 py-2 text-sm">
+            <span>{selected.size} seleccionados</span>
+            <Button size="sm" onClick={sendSelected} disabled={sending}>Enviar ahora</Button>
+          </div>
+        )}
+        {!loading && filtered.length > 0 && (
+          <div className="flex justify-end">
+            <Button size="sm" variant="secondary" onClick={sendAllActive} disabled={sending}>
+              Enviar todos los activos
+            </Button>
+          </div>
+        )}
         {loading ? (
           <div className="text-center text-text-muted text-sm py-8">Cargando...</div>
         ) : filtered.length === 0 ? (
@@ -97,12 +167,22 @@ function RemindersList() {
                     </p>
                     <p className="text-text-muted text-xs">{service?.name || 'Servicio'}</p>
                   </div>
-                  <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(r.id)}
+                      onChange={() => toggleSelected(r.id)}
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 mt-2 text-xs text-text-muted">
                   <span>📅 {r.next_send_date ? formatDate(r.next_send_date) : '—'}</span>
                   <span>•</span>
                   <span>{r.type === 'recurring' ? `Cada ${r.recurrence_days}d` : 'Una vez'}</span>
+                </div>
+                <div className="flex items-center justify-end gap-2 mt-2">
+                  <Button size="sm" variant="secondary" onClick={() => sendNow(r.id)} disabled={sending}>Enviar ahora</Button>
                 </div>
               </div>
             )
