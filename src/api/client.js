@@ -1,9 +1,11 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://recordapp-production.up.railway.app'
+const rawBaseUrl = import.meta.env.VITE_API_URL || 'https://recordapp-production.up.railway.app'
+// Normaliza para evitar doble /api/v1 si la env ya lo trae
+const normalizedBaseUrl = rawBaseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '').replace(/\/api$/, '')
 
 const api = axios.create({
-  baseURL: `${BASE_URL}/api/v1`,
+  baseURL: `${normalizedBaseUrl}/api/v1`,
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
 })
