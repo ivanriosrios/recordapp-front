@@ -4,6 +4,7 @@ import { authApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { PhoneInput } from '../components/ui/PhoneInput'
 
 // Tipos de negocio con emoji
 const BUSINESS_TYPES = [
@@ -101,12 +102,10 @@ function Step3({ form, onChange, onSubmit, onBack, loading, error }) {
       <h2 className="text-xl font-bold text-text mb-2">Datos de contacto</h2>
       <p className="text-text-muted text-sm mb-6">Con esto creamos tu cuenta</p>
 
-      <Input
+      <PhoneInput
         label="Número de WhatsApp"
-        placeholder="+57 300 123 4567"
-        type="tel"
         value={form.whatsapp_phone}
-        onChange={(e) => onChange('whatsapp_phone', e.target.value)}
+        onChange={(val) => onChange('whatsapp_phone', val)}
       />
 
       <Input
