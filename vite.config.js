@@ -47,4 +47,8 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    // Allow Railway preview host
+    allowedHosts: ['recordapp-production.up.railway.app'],
+  },
 })
