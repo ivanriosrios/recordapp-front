@@ -173,7 +173,12 @@ export default function OnboardingPage() {
       })
       setAuth(data)
     } catch (err) {
-      setError(err.message)
+      const detail = err?.data?.detail || err.message
+      if (err?.status === 409 && detail) {
+        setError(detail)
+      } else {
+        setError(detail || 'No pudimos crear tu cuenta. Intenta de nuevo.')
+      }
     } finally {
       setLoading(false)
     }
