@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const rawBaseUrl = import.meta.env.VITE_API_URL || 'https://recordapp-production.up.railway.app'
+// Usa el backend como base por defecto (si la env no está definida)
+const rawBaseUrl = import.meta.env.VITE_API_URL || 'https://recordappback-production.up.railway.app'
 // Normaliza para evitar doble /api/v1 si la env ya lo trae
 const normalizedBaseUrl = rawBaseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '').replace(/\/api$/, '')
 
