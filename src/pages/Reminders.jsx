@@ -159,6 +159,7 @@ function RemindersList() {
           filtered.map((r) => {
             const client = getClient(r.client_id)
             const service = getService(r.service_id)
+            const isActive = r.status === 'active'
             return (
               <div key={r.id} className="card">
                 <div className="flex items-start justify-between gap-2">
@@ -170,20 +171,30 @@ function RemindersList() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(r.id)}
-                      onChange={() => toggleSelected(r.id)}
-                    />
+                    {isActive && (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(r.id)}
+                        onChange={() => toggleSelected(r.id)}
+                      />
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 mt-2 text-xs text-text-muted">
-                  <span>📅 {r.next_send_date ? formatDate(r.next_send_date) : '—'}</span>
-                  <span>•</span>
-                  <span>{r.type === 'recurring' ? `Cada ${r.recurrence_days}d` : 'Una vez'}</span>
-                </div>
-                <div className="flex items-center justify-end gap-2 mt-2">
-                  <Button size="sm" variant="secondary" onClick={() => sendNow(r.id)} disabled={sending}>Enviar ahora</Button>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-3 text-xs text-text-muted">
+                    <span>📅 {r.next_send_date ? formatDate(r.next_send_date) : '—'}</span>
+                    <span>•</span>
+                    <span>{r.type === 'recurring' ? `Cada ${r.recurrence_days}d` : 'Una vez'}</span>
+                  </div>
+                  {isActive && (
+                    <button
+                      onClick={() => sendNow(r.id)}
+                      disabled={sending}
+                      className="text-primary text-xs font-medium disabled:opacity-50"
+                    >
+                      Enviar
+                    </button>
+                  )}
                 </div>
               </div>
             )

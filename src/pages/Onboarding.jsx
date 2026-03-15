@@ -160,13 +160,29 @@ export default function OnboardingPage() {
   }
 
   const handleSubmit = async () => {
+    // Validaciones frontend
+    const phone = form.whatsapp_phone.replace(/[^\d]/g, '')
+    if (phone.length < 10) {
+      setError('El número de WhatsApp debe tener al menos 10 dígitos con indicativo de país')
+      return
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(form.email.trim())) {
+      setError('Ingresa un correo electrónico válido')
+      return
+    }
+    if (form.password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres')
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
       const data = await authApi.register({
         name: name.trim(),
         business_type: businessType,
-        whatsapp_phone: form.whatsapp_phone.trim(),
+        whatsapp_phone: phone,
         email: form.email.trim(),
         password: form.password,
       })
