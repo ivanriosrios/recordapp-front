@@ -9,6 +9,20 @@ import { Input, Textarea } from '../components/ui/Input'
 import Header from '../components/layout/Header'
 import { formatDate } from '../utils/format'
 
+const TYPE_LABEL = {
+  reminder: 'Recordatorio',
+  promo: 'Promoción',
+  reactivation: 'Reactivación',
+  follow_up: 'Post-servicio',
+  birthday: 'Cumpleaños',
+}
+
+const STATUS_BADGE = {
+  approved: { variant: 'success', label: 'Activa' },
+  pending: { variant: 'warning', label: 'En revisión' },
+  rejected: { variant: 'danger', label: 'Rechazada' },
+}
+
 // ─── Rating display ─────────────────────────────────────────────────────
 function RatingBadge({ rating }) {
   if (rating === null || rating === undefined) {
@@ -297,14 +311,13 @@ function CompleteService() {
 // ─── Gestionar servicios y plantillas ───────────────────────────────────
 function ManageServicesTemplates() {
   const navigate = useNavigate()
-  const { business, services, templates, setServices, addService, setTemplates, addTemplate } = useAppStore()
+  const { business, services, templates, setServices, addService, setTemplates } = useAppStore()
 
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
   const [error, setError] = useState(null)
 
   const [serviceForm, setServiceForm] = useState({ name: '', description: '', ref_price: '', follow_up_days: '' })
-  const [templateForm, setTemplateForm] = useState({ name: '', body: '', type: 'reminder', channel: 'whatsapp' })
 
   useEffect(() => {
     if (!business?.id) return
@@ -338,26 +351,6 @@ function ManageServicesTemplates() {
     }
   }
 
-  const handleCreateTemplate = async () => {
-    if (!templateForm.name.trim() || !templateForm.body.trim()) return
-    setLoading(true)
-    setError(null)
-    try {
-      const tpl = await templatesApi.create(business.id, {
-        name: templateForm.name.trim(),
-        body: templateForm.body,
-        type: templateForm.type,
-        channel: templateForm.channel,
-      })
-      addTemplate(tpl)
-      setTemplateForm({ name: '', body: '', type: 'reminder', channel: 'whatsapp' })
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   if (loadingData) {
     return (
       <div>
@@ -371,6 +364,7 @@ function ManageServicesTemplates() {
     <div>
       <Header title="Servicios y plantillas" onBack={() => navigate(-1)} />
       <div className="px-5 pb-6 space-y-6">
+        {/* Crear servicio */}
         <div className="card space-y-3">
           <h3 className="font-semibold text-text">Nuevo servicio</h3>
           <Input label="Nombre" value={serviceForm.name} onChange={(e) => setServiceForm((p) => ({ ...p, name: e.target.value }))} />
@@ -384,44 +378,13 @@ function ManageServicesTemplates() {
           </Button>
         </div>
 
-        <div className="card space-y-3">
-          <h3 className="font-semibold text-text">Nueva plantilla</h3>
-          <Input label="Nombre" value={templateForm.name} onChange={(e) => setTemplateForm((p) => ({ ...p, name: e.target.value }))} />
-          <Textarea label="Mensaje" value={templateForm.body} onChange={(e) => setTemplateForm((p) => ({ ...p, body: e.target.value }))} />
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Tipo"
-              value={templateForm.type}
-              onChange={(e) => setTemplateForm((p) => ({ ...p, type: e.target.value }))}
-              options={[
-                { value: 'reminder', label: 'Recordatorio' },
-                { value: 'promo', label: 'Promoción' },
-                { value: 'reactivation', label: 'Reactivación' },
-                { value: 'follow_up', label: 'Post-servicio' },
-                { value: 'birthday', label: 'Cumpleaños' },
-              ]}
-            />
-            <Select
-              label="Canal"
-              value={templateForm.channel}
-              onChange={(e) => setTemplateForm((p) => ({ ...p, channel: e.target.value }))}
-              options={[
-                { value: 'whatsapp', label: 'WhatsApp' },
-                { value: 'email', label: 'Email' },
-              ]}
-            />
-          </div>
-          <Button onClick={handleCreateTemplate} disabled={!templateForm.name.trim() || !templateForm.body.trim() || loading}>
-            Guardar plantilla
-          </Button>
-        </div>
-
         {error && (
           <div className="bg-danger/10 border border-danger/30 rounded-xl p-3 text-danger text-sm">
             {error}
           </div>
         )}
 
+        {/* Servicios existentes */}
         <div className="space-y-2">
           <h4 className="text-text font-semibold">Servicios existentes</h4>
           {services.length === 0 ? (
@@ -439,22 +402,38 @@ function ManageServicesTemplates() {
           )}
         </div>
 
+        {/* Plantillas de WhatsApp (solo lectura) */}
         <div className="space-y-2">
-          <h4 className="text-text font-semibold">Plantillas existentes</h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-text font-semibold">Plantillas de WhatsApp</h4>
+            <span className="text-text-muted text-xs">Pre-aprobadas por Meta</span>
+          </div>
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 mb-2">
+            <p className="text-text-muted text-xs">
+              Estas plantillas están aprobadas por WhatsApp y se usan automáticamente según el tipo de mensaje. No es necesario crear nuevas.
+            </p>
+          </div>
           {templates.length === 0 ? (
-            <p className="text-text-muted text-sm">Aún no tienes plantillas.</p>
+            <p className="text-text-muted text-sm">Cargando plantillas...</p>
           ) : (
-            templates.map((t) => (
-              <div key={t.id} className="card">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-text font-medium text-sm">{t.name}</p>
-                    <p className="text-text-muted text-xs capitalize">{t.type}</p>
+            templates.map((t) => {
+              const statusInfo = STATUS_BADGE[t.status] || STATUS_BADGE.approved
+              return (
+                <div key={t.id} className="card">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-text font-medium text-sm">{t.name}</p>
+                      <p className="text-text-muted text-xs">{TYPE_LABEL[t.type] || t.type}</p>
+                    </div>
+                    <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
                   </div>
-                  <Badge variant="muted">{t.channel}</Badge>
+                  {/* Preview del mensaje */}
+                  <div className="bg-[#075e54] rounded-lg p-2.5 text-white text-xs leading-relaxed">
+                    {t.body}
+                  </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>

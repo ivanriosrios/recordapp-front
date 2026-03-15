@@ -288,9 +288,11 @@ function NewReminder() {
     { value: '', label: 'Seleccionar servicio...' },
     ...services.map((s) => ({ value: s.id, label: s.name })),
   ]
+  // Solo mostrar templates aprobados
+  const approvedTemplates = templates.filter((t) => t.status === 'approved' || !t.status)
   const templateOptions = [
     { value: '', label: 'Seleccionar plantilla...' },
-    ...templates.map((t) => ({ value: t.id, label: `${t.name} (${TYPE_LABEL[t.type] || t.type})` })),
+    ...approvedTemplates.map((t) => ({ value: t.id, label: `${t.name} (${TYPE_LABEL[t.type] || t.type})` })),
   ]
 
   if (loadingData) {
