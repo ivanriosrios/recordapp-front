@@ -151,7 +151,7 @@ export default function DashboardPage() {
             {[
               { icon: '👤', label: 'Nuevo cliente', action: () => navigate('/clients/new') },
               { icon: '🔔', label: 'Nuevo recordatorio', action: () => navigate('/reminders/new') },
-              { icon: '📊', label: 'Ver clientes', action: () => navigate('/clients') },
+              { icon: '📊', label: 'Analytics', action: () => navigate('/analytics') },
               { icon: '⚙️', label: 'Configuración', action: () => navigate('/settings') },
             ].map((item) => (
               <button
