@@ -6,7 +6,7 @@ const normalizedBaseUrl = rawBaseUrl.replace(/\/+$/, '').replace(/\/api\/v1$/, '
 const api = axios.create({
   baseURL: `${normalizedBaseUrl}/api/v1`,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: 30000,
 })
 
 // Interceptor: adjunta Bearer token si existe
