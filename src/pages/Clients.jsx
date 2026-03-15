@@ -7,7 +7,7 @@ import { Input, Textarea } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Badge } from '../components/ui/Badge'
 import Header from '../components/layout/Header'
-import { clientLabel, initials, daysSince, formatDate } from '../utils/format'
+import { clientLabel, initials, daysSince, formatDate, isUpcomingBirthday } from '../utils/format'
 
 // ─── Badge de estado ────────────────────────────────────────────────────
 const STATUS_VARIANT = { active: 'success', inactive: 'muted', optout: 'danger' }
@@ -122,6 +122,7 @@ function ClientsList() {
           <div className="space-y-2">
             {filtered.map((client) => {
               const dias = daysSince(client.updated_at)
+              const hasBirthday = isUpcomingBirthday(client.birth_date, 7)
               return (
                 <button
                   key={client.id}
@@ -133,6 +134,9 @@ function ClientsList() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-text text-sm truncate">{client.display_name}</span>
                       <Badge variant={STATUS_VARIANT[client.status]}>{STATUS_LABEL[client.status]}</Badge>
+                      {hasBirthday && (
+                        <span className="text-lg">🎂</span>
+                      )}
                     </div>
                     {client.full_name && (
                       <p className="text-text-muted text-xs truncate">{client.full_name}</p>
@@ -388,6 +392,14 @@ function ClientDetail() {
                 </div>
               ))}
             </div>
+          )}
+          {serviceLogs.length > 0 && (
+            <button
+              onClick={() => navigate(`/clients/${client.id}/history`)}
+              className="w-full mt-3 py-2 px-3 text-center text-primary text-sm font-medium hover:bg-primary/5 rounded-lg"
+            >
+              Ver historial completo
+            </button>
           )}
         </section>
 

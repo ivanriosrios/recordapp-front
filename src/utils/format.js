@@ -44,3 +44,26 @@ export function initials(name) {
     .join('')
     .toUpperCase()
 }
+
+/** Detecta si un cliente cumple años hoy o en los próximos N días */
+export function isUpcomingBirthday(birthDate, daysAhead = 7) {
+  if (!birthDate) return false
+  const today = new Date()
+  const birth = new Date(birthDate)
+
+  // Comparar mes y día (ignorar año)
+  const todayMonth = today.getMonth()
+  const todayDate = today.getDate()
+  const birthMonth = birth.getMonth()
+  const birthDate_ = birth.getDate()
+
+  // Rango de días a verificar
+  for (let i = 0; i <= daysAhead; i++) {
+    const checkDate = new Date(today)
+    checkDate.setDate(checkDate.getDate() + i)
+    if (checkDate.getMonth() === birthMonth && checkDate.getDate() === birthDate_) {
+      return true
+    }
+  }
+  return false
+}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clientsApi, remindersApi } from '../api'
+import { clientsApi, remindersApi, notificationsApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
 import { StatCard } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const { business, clients, setClients } = useAppStore()
   const [reminders, setReminders] = useState([])
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -29,9 +30,11 @@ export default function DashboardPage() {
     Promise.all([
       clientsApi.list(business.id),
       remindersApi.list(business.id, { upcoming_days: 7 }),
-    ]).then(([c, r]) => {
+      notificationsApi.unreadCount(business.id),
+    ]).then(([c, r, notifs]) => {
       setClients(c)
       setReminders(r)
+      setUnreadNotifications(notifs.count)
     }).finally(() => setLoading(false))
   }, [business?.id])
 
@@ -49,12 +52,25 @@ export default function DashboardPage() {
           <p className="text-text-muted text-xs">Bienvenido de nuevo</p>
           <h1 className="text-lg font-bold text-text">{business?.name}</h1>
         </div>
-        <button
-          onClick={() => navigate('/settings')}
-          className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center"
-        >
-          {(business?.name || 'R')[0].toUpperCase()}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/notifications')}
+            className="relative w-9 h-9 rounded-full bg-border/30 text-text-muted font-bold text-sm flex items-center justify-center active:opacity-75"
+          >
+            🔔
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center">
+                {unreadNotifications > 9 ? '9+' : unreadNotifications}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => navigate('/settings')}
+            className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center"
+          >
+            {(business?.name || 'R')[0].toUpperCase()}
+          </button>
+        </div>
       </div>
 
       <div className="px-5 pb-6 space-y-5">
