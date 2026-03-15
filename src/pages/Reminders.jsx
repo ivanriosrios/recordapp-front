@@ -76,6 +76,7 @@ function RemindersList() {
 
   const filtered = reminders.filter((r) =>
     tab === 'active' ? r.status === 'active' :
+    tab === 'done' ? r.status === 'done' :
     tab === 'paused' ? r.status === 'paused' : true
   )
 
@@ -114,7 +115,7 @@ function RemindersList() {
 
       {/* Tabs */}
       <div className="flex px-5 gap-1 mb-4 border-b border-border">
-        {[{ key: 'active', label: 'Próximos' }, { key: 'all', label: 'Todos' }, { key: 'paused', label: 'Pausados' }].map((t) => (
+        {[{ key: 'active', label: 'Próximos' }, { key: 'done', label: 'Enviados' }, { key: 'all', label: 'Todos' }, { key: 'paused', label: 'Pausados' }].map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -149,7 +150,7 @@ function RemindersList() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-10">
             <div className="text-4xl mb-3">🔔</div>
-            <p className="text-text-muted text-sm">Sin recordatorios {tab === 'paused' ? 'pausados' : 'activos'}</p>
+            <p className="text-text-muted text-sm">Sin recordatorios {tab === 'paused' ? 'pausados' : tab === 'done' ? 'enviados' : 'activos'}</p>
             <button onClick={() => navigate('/reminders/new')} className="text-primary text-sm font-medium mt-2">
               + Crear recordatorio
             </button>
