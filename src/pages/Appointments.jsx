@@ -273,10 +273,11 @@ function PendingTab({ businessId }) {
 
   const load = useCallback(() => {
     setLoading(true)
+    setError('')
     appointmentsApi
       .list(businessId, { status: 'requested' })
       .then(setAppointments)
-      .catch(() => setError('Error cargando citas'))
+      .catch((e) => setError(e?.message || 'Error cargando citas'))
       .finally(() => setLoading(false))
   }, [businessId])
 
@@ -346,11 +347,12 @@ function AllAppointmentsTab({ businessId }) {
 
   const load = useCallback(() => {
     setLoading(true)
+    setError('')
     const params = statusFilter ? { status: statusFilter } : {}
     appointmentsApi
       .list(businessId, params)
       .then(setAppointments)
-      .catch(() => setError('Error cargando citas'))
+      .catch((e) => setError(e?.message || 'Error cargando citas'))
       .finally(() => setLoading(false))
   }, [businessId, statusFilter])
 
@@ -464,7 +466,7 @@ function ScheduleTab({ businessId }) {
         setJsonText(JSON.stringify(s.schedule_data, null, 2))
       })
       .catch((e) => {
-        if (e?.response?.status !== 404) setError('Error cargando horario')
+        if (e?.status !== 404) setError('Error cargando horario')
         setJsonText(JSON.stringify(DEFAULT_SLOTS, null, 2))
       })
       .finally(() => setLoading(false))
