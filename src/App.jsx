@@ -11,6 +11,7 @@ import ServiceHistoryPage from './pages/ServiceHistory'
 import AnalyticsPage from './pages/Analytics'
 import NotificationsPage from './pages/Notifications'
 import ClientHistoryPage from './pages/ClientHistory'
+import AppointmentsPage from './pages/Appointments'
 import BottomNav from './components/layout/BottomNav'
 
 function AppShell({ children }) {
@@ -34,6 +35,7 @@ function AuthenticatedLayout() {
           <Route path="/clients/*" element={<ClientsPage />} />
           <Route path="/reminders/*" element={<RemindersPage />} />
           <Route path="/services/*" element={<ServiceHistoryPage />} />
+          <Route path="/appointments/*" element={<AppointmentsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
