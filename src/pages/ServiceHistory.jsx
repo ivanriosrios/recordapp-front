@@ -138,10 +138,23 @@ function ServiceLogsList() {
                   </p>
                   <p className="text-text-muted text-xs">{log.service_name || 'Servicio'}</p>
                 </div>
-                <FollowUpBadge sent={log.follow_up_sent} rating={log.rating} />
+                <div className="flex flex-col items-end gap-1">
+                  {log.price_charged != null && (
+                    <span className="text-sm font-semibold text-text">
+                      ${Number(log.price_charged).toLocaleString('es-CO')}
+                    </span>
+                  )}
+                  <FollowUpBadge sent={log.follow_up_sent} rating={log.rating} />
+                </div>
               </div>
-              <div className="flex items-center gap-3 mt-2 text-xs text-text-muted">
+              <div className="flex items-center gap-3 mt-2 text-xs text-text-muted flex-wrap">
                 <span>📅 {formatDate(log.completed_at)}</span>
+                {log.payment_method && (
+                  <>
+                    <span>•</span>
+                    <span>{log.payment_method === 'efectivo' ? '💵 Efectivo' : log.payment_method === 'tarjeta' ? '💳 Tarjeta' : log.payment_method === 'transferencia' ? '🏦 Transf.' : log.payment_method}</span>
+                  </>
+                )}
                 {log.notes && (
                   <>
                     <span>•</span>
@@ -167,6 +180,14 @@ function ServiceLogsList() {
   )
 }
 
+const PAYMENT_OPTIONS = [
+  { value: '', label: 'Método de pago...' },
+  { value: 'efectivo', label: 'Efectivo 💵' },
+  { value: 'tarjeta', label: 'Tarjeta 💳' },
+  { value: 'transferencia', label: 'Transferencia 🏦' },
+  { value: 'otro', label: 'Otro' },
+]
+
 // ─── Marcar servicio completado ─────────────────────────────────────────
 function CompleteService() {
   const navigate = useNavigate()
@@ -175,11 +196,16 @@ function CompleteService() {
   const [loadingData, setLoadingData] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
+  const [summaryWasSent, setSummaryWasSent] = useState(false)
 
   const [form, setForm] = useState({
     client_id: '',
     service_id: '',
     notes: '',
+    price_charged: '',
+    payment_method: '',
+    service_notes: '',
+    send_summary: false,
   })
 
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }))
@@ -197,18 +223,43 @@ function CompleteService() {
 
   const selectedService = services.find((s) => s.id === form.service_id)
 
+  // Pre-fill price when service is selected
+  const handleServiceChange = (e) => {
+    const svcId = e.target.value
+    const svc = services.find((s) => s.id === svcId)
+    setForm((p) => ({
+      ...p,
+      service_id: svcId,
+      price_charged: svc?.ref_price != null ? String(svc.ref_price) : p.price_charged,
+    }))
+  }
+
   const handleSubmit = async () => {
     if (!form.client_id || !form.service_id) return
     setLoading(true)
     setError(null)
     try {
-      await serviceLogsApi.create(business.id, {
+      // 1. Create the base service log
+      const log = await serviceLogsApi.create(business.id, {
         client_id: form.client_id,
         service_id: form.service_id,
         notes: form.notes || null,
       })
+
+      // 2. If any close-service fields provided, call /complete
+      const hasCloseData = form.price_charged || form.payment_method || form.service_notes || form.send_summary
+      if (hasCloseData) {
+        await serviceLogsApi.complete(business.id, log.id, {
+          price_charged: form.price_charged ? Number(form.price_charged) : null,
+          payment_method: form.payment_method || null,
+          service_notes: form.service_notes || null,
+          send_summary: form.send_summary,
+        })
+        setSummaryWasSent(form.send_summary)
+      }
+
       setSuccess(true)
-      setTimeout(() => navigate('/services'), 1500)
+      setTimeout(() => navigate('/services'), 2000)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -249,12 +300,16 @@ function CompleteService() {
           <div className="text-center py-10">
             <div className="text-5xl mb-4">✅</div>
             <p className="text-text font-semibold text-lg">Servicio registrado</p>
+            {summaryWasSent && (
+              <p className="text-text-muted text-sm mt-1">📱 Comprobante enviado por WhatsApp</p>
+            )}
             <p className="text-text-muted text-sm mt-1">
               Se enviará encuesta de satisfacción en {selectedService?.follow_up_days || 2} días
             </p>
           </div>
         ) : (
           <>
+            {/* Cliente y servicio */}
             <Select
               label="Cliente *"
               value={form.client_id}
@@ -265,7 +320,7 @@ function CompleteService() {
             <Select
               label="Servicio *"
               value={form.service_id}
-              onChange={(e) => set('service_id', e.target.value)}
+              onChange={handleServiceChange}
               options={serviceOptions}
             />
 
@@ -276,18 +331,58 @@ function CompleteService() {
                   📩 Se enviará encuesta post-servicio en{' '}
                   <strong>{selectedService.follow_up_days || 2} días</strong> por WhatsApp.
                 </p>
-                <p className="text-text-muted text-xs mt-1">
-                  El cliente recibirá un mensaje preguntando cómo le fue.
-                </p>
               </div>
             )}
 
+            {/* Cierre de servicio */}
+            <div className="card mb-4 space-y-3">
+              <h3 className="font-semibold text-text text-sm">Cierre del servicio</h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Total cobrado"
+                  type="number"
+                  placeholder="0"
+                  value={form.price_charged}
+                  onChange={(e) => set('price_charged', e.target.value)}
+                />
+                <Select
+                  label="Método de pago"
+                  value={form.payment_method}
+                  onChange={(e) => set('payment_method', e.target.value)}
+                  options={PAYMENT_OPTIONS}
+                />
+              </div>
+
+              <Textarea
+                label="Notas del servicio"
+                placeholder="Ej: Se aplicó tinte caoba, próxima visita en 4 semanas..."
+                value={form.service_notes}
+                onChange={(e) => set('service_notes', e.target.value)}
+              />
+            </div>
+
+            {/* Notas generales */}
             <Textarea
-              label="Notas (opcional)"
-              placeholder="Detalles del servicio realizado..."
+              label="Notas generales (opcional)"
+              placeholder="Observaciones internas..."
               value={form.notes}
               onChange={(e) => set('notes', e.target.value)}
             />
+
+            {/* Toggle comprobante WhatsApp */}
+            <div
+              className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3 mb-4 cursor-pointer"
+              onClick={() => set('send_summary', !form.send_summary)}
+            >
+              <div>
+                <p className="text-text text-sm font-medium">Enviar comprobante por WhatsApp</p>
+                <p className="text-text-muted text-xs">Resumen del servicio al cliente</p>
+              </div>
+              <div className={`w-11 h-6 rounded-full transition-colors ${form.send_summary ? 'bg-primary' : 'bg-border'} relative`}>
+                <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.send_summary ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </div>
+            </div>
 
             {error && (
               <div className="bg-danger/10 border border-danger/30 rounded-xl p-3 mb-4 text-danger text-sm">
@@ -317,7 +412,7 @@ function ManageServicesTemplates() {
   const [loadingData, setLoadingData] = useState(true)
   const [error, setError] = useState(null)
 
-  const [serviceForm, setServiceForm] = useState({ name: '', description: '', ref_price: '', follow_up_days: '' })
+  const [serviceForm, setServiceForm] = useState({ name: '', description: '', ref_price: '', follow_up_days: '', estimated_duration_minutes: '' })
 
   useEffect(() => {
     if (!business?.id) return
@@ -340,10 +435,11 @@ function ManageServicesTemplates() {
         description: serviceForm.description || null,
         ref_price: serviceForm.ref_price ? Number(serviceForm.ref_price) : null,
         follow_up_days: serviceForm.follow_up_days ? Number(serviceForm.follow_up_days) : null,
+        estimated_duration_minutes: serviceForm.estimated_duration_minutes ? Number(serviceForm.estimated_duration_minutes) : null,
       }
       const svc = await servicesApi.create(business.id, payload)
       addService(svc)
-      setServiceForm({ name: '', description: '', ref_price: '', follow_up_days: '' })
+      setServiceForm({ name: '', description: '', ref_price: '', follow_up_days: '', estimated_duration_minutes: '' })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -372,6 +468,7 @@ function ManageServicesTemplates() {
           <div className="grid grid-cols-2 gap-3">
             <Input label="Precio ref." type="number" value={serviceForm.ref_price} onChange={(e) => setServiceForm((p) => ({ ...p, ref_price: e.target.value }))} />
             <Input label="Días para encuesta" type="number" value={serviceForm.follow_up_days} onChange={(e) => setServiceForm((p) => ({ ...p, follow_up_days: e.target.value }))} />
+            <Input label="Duración (min)" type="number" placeholder="30" value={serviceForm.estimated_duration_minutes} onChange={(e) => setServiceForm((p) => ({ ...p, estimated_duration_minutes: e.target.value }))} />
           </div>
           <Button onClick={handleCreateService} disabled={!serviceForm.name.trim() || loading}>
             Guardar servicio
@@ -394,7 +491,11 @@ function ManageServicesTemplates() {
               <div key={s.id} className="card flex items-center justify-between">
                 <div>
                   <p className="text-text font-medium text-sm">{s.name}</p>
-                  <p className="text-text-muted text-xs">Encuesta en {s.follow_up_days || 2} días</p>
+                  <p className="text-text-muted text-xs">
+                    Encuesta en {s.follow_up_days || 2} días
+                    {s.ref_price != null && ` · $${Number(s.ref_price).toLocaleString('es-CO')}`}
+                    {s.estimated_duration_minutes && ` · ${s.estimated_duration_minutes} min`}
+                  </p>
                 </div>
                 {!s.is_active && <Badge variant="muted">Inactivo</Badge>}
               </div>
