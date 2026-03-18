@@ -56,14 +56,25 @@ function ClientsList() {
         title="Clientes"
         onBack={false}
         rightAction={
-          <button
-            onClick={() => navigate('/clients/new')}
-            className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate('/clients/bulk')}
+              title="Carga masiva"
+              className="w-9 h-9 rounded-xl bg-card border border-border flex items-center justify-center text-text"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </button>
+            <button
+              onClick={() => navigate('/clients/new')}
+              className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
         }
       />
 
@@ -412,12 +423,170 @@ function ClientDetail() {
   )
 }
 
+// ─── Carga masiva ────────────────────────────────────────────────────────
+function BulkUpload() {
+  const navigate = useNavigate()
+  const { business, setClients } = useAppStore()
+  const [file, setFile] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+  const [dragging, setDragging] = useState(false)
+
+  const handleFile = (f) => {
+    if (!f) return
+    if (!f.name.endsWith('.csv')) {
+      setError('Solo se aceptan archivos .csv')
+      return
+    }
+    setFile(f)
+    setError(null)
+    setResult(null)
+  }
+
+  const handleUpload = async () => {
+    if (!file || !business?.id) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await clientsApi.bulkUpload(business.id, file)
+      setResult(res)
+      // Recargar lista de clientes
+      clientsApi.list(business.id).then(setClients)
+    } catch (err) {
+      setError(err.message || 'Error al cargar el archivo')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const downloadTemplate = () => {
+    const csv = 'nombre,telefono,email,notas\nJuan Pérez,3001234567,juan@email.com,Cliente frecuente\nMaría García,3109876543,,\n'
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'plantilla_clientes.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div>
+      <Header title="Carga masiva" onBack={() => navigate('/clients')} />
+      <div className="px-5 pb-6 space-y-4">
+        {/* Info template */}
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+          <p className="text-text text-sm font-medium mb-1">Formato del archivo CSV</p>
+          <p className="text-text-muted text-xs">Columnas requeridas: <strong>nombre</strong>, <strong>telefono</strong></p>
+          <p className="text-text-muted text-xs">Columnas opcionales: email, notas</p>
+          <p className="text-text-muted text-xs mt-1">Los teléfonos colombianos de 10 dígitos se normalizan automáticamente.</p>
+          <button
+            onClick={downloadTemplate}
+            className="mt-2 text-primary text-xs font-medium underline"
+          >
+            Descargar plantilla de ejemplo
+          </button>
+        </div>
+
+        {/* Drop zone */}
+        {!result && (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]) }}
+            onClick={() => document.getElementById('csv-input').click()}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+              dragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+            }`}
+          >
+            <input
+              id="csv-input"
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => handleFile(e.target.files[0])}
+            />
+            {file ? (
+              <>
+                <div className="text-3xl mb-2">📄</div>
+                <p className="text-text font-medium text-sm">{file.name}</p>
+                <p className="text-text-muted text-xs mt-1">{(file.size / 1024).toFixed(1)} KB · Listo para cargar</p>
+              </>
+            ) : (
+              <>
+                <div className="text-3xl mb-2">📂</div>
+                <p className="text-text font-medium text-sm">Arrastra tu CSV aquí</p>
+                <p className="text-text-muted text-xs mt-1">o toca para seleccionar</p>
+              </>
+            )}
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-danger/10 border border-danger/30 rounded-xl p-3 text-danger text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Resultado */}
+        {result && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="card text-center">
+                <p className="text-2xl font-bold text-success">{result.created}</p>
+                <p className="text-text-muted text-xs">Creados</p>
+              </div>
+              <div className="card text-center">
+                <p className="text-2xl font-bold text-warning">{result.skipped}</p>
+                <p className="text-text-muted text-xs">Duplicados</p>
+              </div>
+              <div className="card text-center">
+                <p className="text-2xl font-bold text-danger">{result.errors_count}</p>
+                <p className="text-text-muted text-xs">Errores</p>
+              </div>
+            </div>
+
+            {result.errors?.length > 0 && (
+              <div className="card">
+                <p className="text-text font-medium text-sm mb-2">Errores detectados</p>
+                <div className="space-y-1">
+                  {result.errors.map((e, i) => (
+                    <p key={i} className="text-danger text-xs">Fila {e.row}: {e.reason} {e.data ? `(${e.data})` : ''}</p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button onClick={() => navigate('/clients')}>
+              Ver clientes
+            </Button>
+            <button
+              onClick={() => { setFile(null); setResult(null) }}
+              className="w-full text-text-muted text-sm py-2"
+            >
+              Cargar otro archivo
+            </button>
+          </div>
+        )}
+
+        {file && !result && (
+          <Button onClick={handleUpload} disabled={loading}>
+            {loading ? 'Cargando...' : `Importar clientes`}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Router de clientes ──────────────────────────────────────────────────
 export default function ClientsPage() {
   return (
     <Routes>
       <Route index element={<ClientsList />} />
       <Route path="new" element={<NewClient />} />
+      <Route path="bulk" element={<BulkUpload />} />
       <Route path=":id" element={<ClientDetail />} />
     </Routes>
   )

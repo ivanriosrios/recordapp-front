@@ -161,8 +161,8 @@ export default function ClientHistoryPage() {
               color="text-primary"
             />
             <StatCard
-              label="Recordatorios"
-              value={stats.total_reminders_sent}
+              label="Ingresos totales"
+              value={stats.total_revenue > 0 ? `$${Number(stats.total_revenue).toLocaleString('es-CO', { maximumFractionDigits: 0 })}` : '—'}
               color="text-success"
             />
             <StatCard
@@ -215,6 +215,12 @@ export default function ClientHistoryPage() {
                 </p>
               </div>
             )}
+            {client.extra_info && (
+              <div>
+                <p className="text-text-muted text-xs">Info adicional</p>
+                <p className="text-text text-sm">{client.extra_info}</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -235,13 +241,23 @@ export default function ClientHistoryPage() {
                       <p className="text-text-muted text-xs">
                         {formatDate(log.completed_at)}
                       </p>
-                      {log.notes && (
+                      {log.payment_method && (
+                        <p className="text-text-muted text-xs">
+                          {log.payment_method === 'efectivo' ? '💵 Efectivo' : log.payment_method === 'tarjeta' ? '💳 Tarjeta' : log.payment_method === 'transferencia' ? '🏦 Transf.' : log.payment_method}
+                        </p>
+                      )}
+                      {(log.service_notes || log.notes) && (
                         <p className="text-text-muted text-xs mt-1">
-                          {log.notes}
+                          {log.service_notes || log.notes}
                         </p>
                       )}
                     </div>
                     <div className="text-right flex-shrink-0">
+                      {log.price_charged != null && (
+                        <p className="text-text font-semibold text-sm">
+                          ${Number(log.price_charged).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                        </p>
+                      )}
                       <RatingStars rating={log.rating} />
                     </div>
                   </div>

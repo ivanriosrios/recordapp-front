@@ -12,4 +12,12 @@ export const clientsApi = {
 
   update: (businessId, clientId, data) =>
     api.patch(`/businesses/${businessId}/clients/${clientId}`, data),
+
+  bulkUpload: (businessId, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/businesses/${businessId}/clients/bulk-upload`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
