@@ -3,67 +3,149 @@ import { reportsApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
 import Header from '../components/layout/Header'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 const fmt = (n) =>
   n == null ? '-' : `$${Number(n).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
 
 const PERIODS = [
   { key: 'today', label: 'Hoy' },
-  { key: 'week', label: 'Semana' },
+  { key: 'week',  label: 'Semana' },
   { key: 'month', label: 'Mes' },
-  { key: 'year', label: 'Año' },
+  { key: 'year',  label: 'Año' },
 ]
 
+const PERIOD_PREV_LABEL = {
+  today: 'vs. ayer',
+  week:  'vs. sem. anterior',
+  month: 'vs. mes anterior',
+  year:  'vs. año anterior',
+}
+
 const PAYMENT_LABEL = {
-  efectivo: '💵 Efectivo',
-  tarjeta: '💳 Tarjeta',
+  efectivo:      '💵 Efectivo',
+  tarjeta:       '💳 Tarjeta',
   transferencia: '🏦 Transf.',
   sin_registrar: '— Sin registro',
 }
 
-// ─── Mini bar chart (CSS) ─────────────────────────────────────────────────
+// ─── Growth badge ─────────────────────────────────────────────────────────────
+
+function GrowthBadge({ pct, label }) {
+  if (pct == null) return null
+  const isUp = pct >= 0
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 2,
+        background: isUp ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+        color: isUp ? '#10b981' : '#ef4444',
+        borderRadius: 999, padding: '3px 8px',
+        fontSize: 12, fontWeight: 700,
+      }}>
+        {isUp ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}%
+      </span>
+      {label && <span style={{ fontSize: 10, color: '#64748b' }}>{label}</span>}
+    </div>
+  )
+}
+
+// ─── KPI card ─────────────────────────────────────────────────────────────────
+
+function KpiCard({ icon, label, value, sub, color = '#6366f1', growth, growthLabel, accent }) {
+  return (
+    <div
+      className="card"
+      style={{
+        flex: 1, minWidth: 0, padding: '14px',
+        borderColor: accent ? `${color}40` : undefined,
+        background: accent ? `${color}0a` : undefined,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <span style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: `${color}22`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 14,
+            }}>{icon}</span>
+            <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>{label}</p>
+          </div>
+          <p style={{ fontSize: 22, fontWeight: 800, color, margin: 0, letterSpacing: '-0.5px' }}>{value}</p>
+          {sub && <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0' }}>{sub}</p>}
+        </div>
+        {growth != null && <GrowthBadge pct={growth} label={growthLabel} />}
+      </div>
+    </div>
+  )
+}
+
+// ─── Mini bar chart (CSS) ─────────────────────────────────────────────────────
+
 function BarChart({ data, valueKey = 'revenue', labelKey = 'date' }) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-28 text-text-muted text-sm">
-        Sin datos para este período
+      <div style={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#64748b', fontSize: 13 }}>Sin datos para este período</p>
       </div>
     )
   }
   const max = Math.max(...data.map((d) => d[valueKey]), 1)
   return (
-    <div className="flex items-end gap-0.5 h-28 overflow-x-auto pb-1">
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 90, overflow: 'hidden' }}>
       {data.map((d, i) => {
         const pct = Math.round((d[valueKey] / max) * 100)
         return (
-          <div key={i} className="flex flex-col items-center flex-1 min-w-[6px] group">
-            <div
-              className="w-full bg-primary/70 rounded-t-sm group-hover:bg-primary transition-colors"
-              style={{ height: `${Math.max(pct, 2)}%` }}
-              title={`${d[labelKey]}: ${fmt(d[valueKey])}`}
-            />
-          </div>
+          <div
+            key={i}
+            style={{
+              flex: 1, minWidth: 4,
+              height: `${Math.max(pct, 3)}%`,
+              background: pct > 80
+                ? 'linear-gradient(180deg, #818cf8, #6366f1)'
+                : 'linear-gradient(180deg, #4f46e522, #6366f155)',
+              borderRadius: '3px 3px 0 0',
+              transition: 'height 0.3s ease',
+            }}
+            title={`${d[labelKey]}: ${fmt(d[valueKey])}`}
+          />
         )
       })}
     </div>
   )
 }
 
-// ─── KPI card ─────────────────────────────────────────────────────────────
-function KpiCard({ icon, label, value, sub, color = 'text-primary' }) {
+// ─── Service row ──────────────────────────────────────────────────────────────
+
+function ServiceRow({ name, count, revenue, pct }) {
   return (
-    <div className="card flex-1 min-w-0">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-xl">{icon}</span>
-        <p className="text-text-muted text-xs truncate">{label}</p>
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', flex: 1, marginRight: 8,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {name}
+        </span>
+        <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>
+          {count}x · {fmt(revenue)}
+        </span>
       </div>
-      <p className={`text-xl font-bold ${color} truncate`}>{value}</p>
-      {sub && <p className="text-text-muted text-xs mt-0.5">{sub}</p>}
+      <div style={{ height: 4, background: '#2d3148', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%',
+          width: `${pct}%`,
+          background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+          borderRadius: 2,
+          transition: 'width 0.5s ease',
+        }} />
+      </div>
     </div>
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function ReportsPage() {
   const { business } = useAppStore()
   const [period, setPeriod] = useState('month')
@@ -90,9 +172,7 @@ export default function ReportsPage() {
     }
   }
 
-  useEffect(() => {
-    load(period)
-  }, [business?.id, period])
+  useEffect(() => { load(period) }, [business?.id, period])
 
   const handleExport = () => {
     if (!business?.id) return
@@ -101,17 +181,32 @@ export default function ReportsPage() {
     window.open(url, '_blank')
   }
 
+  const prevLabel = PERIOD_PREV_LABEL[period] || 'vs. período anterior'
+
+  // Calcular growth de servicios
+  const servicesGrowth = data
+    ? data.prev_services_count > 0
+      ? ((data.services_with_price - data.prev_services_count) / data.prev_services_count) * 100
+      : data.services_with_price > 0 ? 100 : 0
+    : null
+
   return (
-    <div className="pb-24">
+    <div style={{ paddingBottom: 90 }}>
       <Header
         title="Reportes"
         onBack={false}
         rightAction={
           <button
             onClick={handleExport}
-            className="flex items-center gap-1.5 text-primary text-sm font-medium px-3 py-1.5 rounded-xl bg-primary/10"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(99,102,241,0.12)', color: '#818cf8',
+              border: '1px solid rgba(99,102,241,0.25)',
+              borderRadius: 12, padding: '6px 12px',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             CSV
@@ -120,17 +215,27 @@ export default function ReportsPage() {
       />
 
       {/* Period selector */}
-      <div className="px-5 pb-3">
-        <div className="flex gap-2">
+      <div style={{ padding: '0 20px 16px' }}>
+        <div style={{
+          display: 'flex', gap: 6,
+          background: '#1e2235', borderRadius: 14,
+          padding: 4, border: '1px solid #2d3148',
+        }}>
           {PERIODS.map((p) => (
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
-              className={`flex-1 py-1.5 rounded-xl text-sm font-medium transition-colors ${
-                period === p.key
-                  ? 'bg-primary text-white'
-                  : 'bg-card border border-border text-text-muted'
-              }`}
+              style={{
+                flex: 1, padding: '8px 0',
+                borderRadius: 10, fontSize: 13, fontWeight: 600,
+                transition: 'all 0.2s',
+                background: period === p.key
+                  ? 'linear-gradient(135deg, #4f46e5, #7c3aed)'
+                  : 'transparent',
+                color: period === p.key ? '#fff' : '#64748b',
+                border: 'none', cursor: 'pointer',
+                boxShadow: period === p.key ? '0 2px 8px rgba(99,102,241,0.4)' : 'none',
+              }}
             >
               {p.label}
             </button>
@@ -139,84 +244,137 @@ export default function ReportsPage() {
       </div>
 
       {error && (
-        <div className="mx-5 mb-4 bg-danger/10 border border-danger/30 rounded-xl p-3 text-danger text-sm">
+        <div style={{
+          margin: '0 20px 16px',
+          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+          borderRadius: 12, padding: '12px 16px', color: '#ef4444', fontSize: 13,
+        }}>
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="px-5 space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="card h-20 bg-border/20 animate-pulse" />
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {[80, 120, 100].map((h, i) => (
+            <div key={i} style={{ height: h, background: '#1e2235', borderRadius: 16, opacity: 0.5 }} />
           ))}
         </div>
       ) : data ? (
-        <div className="px-5 space-y-4">
+        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
           {/* KPIs principales */}
-          <div className="grid grid-cols-2 gap-3">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <KpiCard
-              icon="💰"
-              label="Ingresos totales"
+              icon="💰" label="Ingresos totales"
               value={fmt(data.total_revenue)}
               sub={`${data.services_with_price} con precio`}
-              color="text-success"
+              color="#10b981"
+              growth={data.growth_pct}
+              growthLabel={prevLabel}
+              accent
             />
             <KpiCard
-              icon="✂️"
-              label="Servicios"
+              icon="✂️" label="Servicios"
               value={data.all_services_count}
               sub={`${data.services_with_price} facturados`}
-              color="text-primary"
+              color="#6366f1"
+              growth={servicesGrowth}
+              growthLabel={prevLabel}
             />
             <KpiCard
-              icon="🎯"
-              label="Ticket promedio"
+              icon="🎯" label="Ticket promedio"
               value={fmt(data.avg_ticket)}
-              color="text-warning"
+              color="#f59e0b"
             />
             <KpiCard
-              icon="🏆"
-              label="Top servicio"
+              icon="🏆" label="Top servicio"
               value={data.by_service?.[0]?.service_name || '—'}
               sub={data.by_service?.[0] ? fmt(data.by_service[0].revenue) : ''}
-              color="text-text"
+              color="#8b5cf6"
             />
           </div>
 
-          {/* Gráfica de ingresos diarios */}
-          <div className="card">
-            <h3 className="text-text font-semibold text-sm mb-3">
-              📊 Ingresos por día
-            </h3>
-            <BarChart data={timeline} valueKey="revenue" labelKey="date" />
-            <div className="flex justify-between text-[10px] text-text-muted mt-1">
+          {/* Comparativa highlight */}
+          {data.prev_total_revenue != null && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))',
+              border: '1px solid rgba(99,102,241,0.2)',
+              borderRadius: 16, padding: '14px 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div>
+                <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 2px' }}>Período anterior</p>
+                <p style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
+                  {fmt(data.prev_total_revenue)}
+                </p>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 2px' }}>Cambio</p>
+                <GrowthBadge pct={data.growth_pct} />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 2px' }}>Actual</p>
+                <p style={{ fontSize: 18, fontWeight: 700, color: '#10b981', margin: 0 }}>
+                  {fmt(data.total_revenue)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Gráfica */}
+          <div className="card" style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>📊 Ingresos por día</h3>
               {timeline.length > 0 && (
-                <>
-                  <span>{timeline[0]?.date?.slice(5)}</span>
-                  {timeline.length > 1 && <span>{timeline[timeline.length - 1]?.date?.slice(5)}</span>}
-                </>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  {timeline[0]?.date?.slice(5)} — {timeline[timeline.length - 1]?.date?.slice(5)}
+                </span>
               )}
             </div>
+            <BarChart data={timeline} valueKey="revenue" labelKey="date" />
           </div>
 
           {/* Por servicio */}
           {data.by_service?.length > 0 && (
-            <div className="card">
-              <h3 className="text-text font-semibold text-sm mb-3">Por servicio</h3>
-              <div className="space-y-2">
-                {data.by_service.map((s, i) => {
-                  const pct = data.total_revenue > 0 ? (s.revenue / data.total_revenue) * 100 : 0
+            <div className="card" style={{ padding: '16px' }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: '0 0 14px' }}>
+                Por servicio
+              </h3>
+              {data.by_service.map((s, i) => {
+                const pct = data.total_revenue > 0 ? (s.revenue / data.total_revenue) * 100 : 0
+                return (
+                  <ServiceRow key={i} name={s.service_name} count={s.count} revenue={s.revenue} pct={pct} />
+                )
+              })}
+            </div>
+          )}
+
+          {/* Por método de pago */}
+          {data.by_payment?.length > 0 && (
+            <div className="card" style={{ padding: '16px' }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: '0 0 14px' }}>
+                Por método de pago
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {data.by_payment.map((p, i) => {
+                  const pct = data.total_revenue > 0 ? (p.revenue / data.total_revenue) * 100 : 0
                   return (
                     <div key={i}>
-                      <div className="flex justify-between text-xs mb-0.5">
-                        <span className="text-text font-medium truncate flex-1 mr-2">{s.service_name}</span>
-                        <span className="text-text-muted flex-shrink-0">{s.count}x · {fmt(s.revenue)}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, color: '#e2e8f0' }}>
+                          {PAYMENT_LABEL[p.method] || p.method}
+                        </span>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>{fmt(p.revenue)}</span>
+                          <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>{p.count} serv.</span>
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-border rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full"
-                          style={{ width: `${pct}%` }}
-                        />
+                      <div style={{ height: 4, background: '#2d3148', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', width: `${pct}%`,
+                          background: 'linear-gradient(90deg, #f59e0b, #fbbf24)',
+                          borderRadius: 2,
+                        }} />
                       </div>
                     </div>
                   )
@@ -225,36 +383,19 @@ export default function ReportsPage() {
             </div>
           )}
 
-          {/* Por método de pago */}
-          {data.by_payment?.length > 0 && (
-            <div className="card">
-              <h3 className="text-text font-semibold text-sm mb-3">Por método de pago</h3>
-              <div className="space-y-2">
-                {data.by_payment.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">{PAYMENT_LABEL[p.method] || p.method}</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-text text-sm font-semibold">{fmt(p.revenue)}</p>
-                      <p className="text-text-muted text-xs">{p.count} servicios</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Empty state */}
           {data.all_services_count === 0 && (
-            <div className="card text-center py-10">
-              <div className="text-4xl mb-3">📊</div>
-              <p className="text-text font-semibold text-sm">Sin datos en este período</p>
-              <p className="text-text-muted text-xs mt-1">
+            <div className="card" style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
+              <p style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0', margin: '0 0 6px' }}>
+                Sin datos en este período
+              </p>
+              <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>
                 Registra servicios completados con precio para ver reportes.
               </p>
             </div>
           )}
+
         </div>
       ) : null}
     </div>

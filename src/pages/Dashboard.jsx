@@ -1,22 +1,199 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clientsApi, remindersApi, notificationsApi, appointmentsApi } from '../api'
+import { clientsApi, remindersApi, notificationsApi, appointmentsApi, reportsApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
-import { StatCard } from '../components/ui/Card'
-import { Badge } from '../components/ui/Badge'
 import { daysSince, formatDate } from '../utils/format'
 
-function RatingStars({ rating }) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const fmt = (n) =>
+  n == null ? '$0' : `$${Number(n).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+
+const SHIFT_LABEL = { morning: 'Mañana', afternoon: 'Tarde', evening: 'Noche' }
+const APPT_STATUS_COLOR = {
+  requested: '#f59e0b',
+  confirmed: '#10b981',
+  completed: '#64748b',
+  rejected: '#ef4444',
+  cancelled: '#ef4444',
+}
+const APPT_STATUS_LABEL = {
+  requested: 'Pendiente',
+  confirmed: 'Confirmada',
+  completed: 'Completada',
+  rejected: 'Rechazada',
+  cancelled: 'Cancelada',
+}
+
+// ─── Hero Revenue Card ─────────────────────────────────────────────────────────
+
+function RevenueHero({ revenue, growth, period, loading }) {
+  const isUp = growth >= 0
+  const periodLabel = { today: 'hoy', week: 'esta semana', month: 'este mes', year: 'este año' }[period] || 'este período'
+
   return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <svg key={i} className={`w-3.5 h-3.5 ${i <= rating ? 'text-warning' : 'text-border'}`} fill="currentColor" viewBox="0 0 20 20">
-          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-        </svg>
-      ))}
+    <div
+      className="mx-5 mb-1 relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #9333ea 100%)',
+        borderRadius: 20,
+        padding: '20px 20px 18px',
+      }}
+    >
+      {/* Círculos decorativos */}
+      <div style={{
+        position: 'absolute', top: -30, right: -20,
+        width: 110, height: 110,
+        borderRadius: '50%',
+        background: 'rgba(255,255,255,0.07)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute', bottom: -25, right: 40,
+        width: 70, height: 70,
+        borderRadius: '50%',
+        background: 'rgba(255,255,255,0.05)',
+        pointerEvents: 'none',
+      }} />
+
+      <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 4, position: 'relative' }}>
+        💰 Ingresos {periodLabel}
+      </p>
+
+      {loading ? (
+        <div style={{ height: 38, width: '55%', background: 'rgba(255,255,255,0.15)', borderRadius: 8, marginBottom: 8 }} />
+      ) : (
+        <p style={{
+          fontSize: 34,
+          fontWeight: 800,
+          color: '#fff',
+          letterSpacing: '-1px',
+          marginBottom: 6,
+          lineHeight: 1.1,
+          position: 'relative',
+        }}>
+          {fmt(revenue)}
+        </p>
+      )}
+
+      {!loading && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 3,
+            background: isUp ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)',
+            color: isUp ? '#6ee7b7' : '#fca5a5',
+            borderRadius: 999,
+            padding: '2px 10px',
+            fontSize: 12,
+            fontWeight: 700,
+          }}>
+            {isUp ? '↑' : '↓'} {Math.abs(growth).toFixed(1)}%
+          </span>
+          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
+            vs. período anterior
+          </span>
+        </div>
+      )}
     </div>
   )
 }
+
+// ─── Stat mini-card ───────────────────────────────────────────────────────────
+
+function MiniStat({ icon, label, value, color = '#6366f1', loading, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="card flex-1 min-w-0 text-left active:opacity-75"
+      style={{ padding: '12px 14px' }}
+    >
+      <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
+      {loading ? (
+        <div style={{ height: 24, width: '60%', background: 'rgba(255,255,255,0.07)', borderRadius: 6, marginBottom: 4 }} />
+      ) : (
+        <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+      )}
+      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, lineHeight: 1.3 }}>{label}</div>
+    </button>
+  )
+}
+
+// ─── Appointment row ──────────────────────────────────────────────────────────
+
+function ApptRow({ appt, onClick }) {
+  const time = appt.appointment_time
+    ? String(appt.appointment_time).slice(0, 5)
+    : SHIFT_LABEL[appt.shift] || '—'
+  const color = APPT_STATUS_COLOR[appt.status] || '#64748b'
+  const label = APPT_STATUS_LABEL[appt.status] || appt.status
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full active:opacity-75"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: '#1e2235', borderRadius: 14,
+        padding: '10px 14px', border: '1px solid #2d3148',
+        textAlign: 'left',
+      }}
+    >
+      <div style={{
+        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+        background: `${color}22`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 16,
+      }}>📅</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', margin: 0,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {appt.client_name || 'Cliente'}
+        </p>
+        <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+          {appt.service_name || '—'} · {time}
+        </p>
+      </div>
+      <span style={{
+        fontSize: 11, fontWeight: 700, color,
+        background: `${color}22`, borderRadius: 999, padding: '2px 8px',
+        flexShrink: 0,
+      }}>{label}</span>
+    </button>
+  )
+}
+
+// ─── Quick action button ──────────────────────────────────────────────────────
+
+function QuickAction({ icon, label, color, bg, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="active:opacity-75"
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', gap: 8,
+        background: '#1e2235', borderRadius: 16, padding: '16px 8px',
+        border: '1px solid #2d3148', flex: 1,
+      }}
+    >
+      <div style={{
+        width: 42, height: 42, borderRadius: 12,
+        background: bg, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', fontSize: 20,
+        boxShadow: `0 4px 14px ${bg}66`,
+      }}>
+        {icon}
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textAlign: 'center', lineHeight: 1.3 }}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -24,6 +201,9 @@ export default function DashboardPage() {
   const [reminders, setReminders] = useState([])
   const [todayAppts, setTodayAppts] = useState([])
   const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [revenue, setRevenue] = useState(null)
+  const [growth, setGrowth] = useState(0)
+  const [period] = useState('month')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -34,11 +214,16 @@ export default function DashboardPage() {
       remindersApi.list(business.id, { upcoming_days: 7 }),
       notificationsApi.unreadCount(business.id),
       appointmentsApi.list(business.id, { from_date: today, to_date: today }).catch(() => []),
-    ]).then(([c, r, notifs, appts]) => {
+      reportsApi.income(business.id, { period }).catch(() => null),
+    ]).then(([c, r, notifs, appts, rep]) => {
       setClients(c)
       setReminders(r)
       setUnreadNotifications(notifs.count)
       setTodayAppts(Array.isArray(appts) ? appts : [])
+      if (rep) {
+        setRevenue(rep.total_revenue)
+        setGrowth(rep.growth_pct ?? 0)
+      }
     }).finally(() => setLoading(false))
   }, [business?.id])
 
@@ -46,84 +231,154 @@ export default function DashboardPage() {
   const activeClients = clients.filter((c) => c.status === 'active').length
   const upcomingCount = reminders.filter((r) => r.status === 'active').length
 
-  const businessType = business?.business_type || 'negocio'
-
   return (
-    <div>
-      {/* Header */}
-      <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+    <div style={{ paddingBottom: 90 }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        padding: '20px 20px 12px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
         <div>
-          <p className="text-text-muted text-xs">Bienvenido de nuevo</p>
-          <h1 className="text-lg font-bold text-text">{business?.name}</h1>
+          <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>Bienvenido de nuevo</p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#e2e8f0', margin: 0, letterSpacing: '-0.5px' }}>
+            {business?.name || '…'}
+          </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={() => navigate('/notifications')}
-            className="relative w-9 h-9 rounded-full bg-border/30 text-text-muted font-bold text-sm flex items-center justify-center active:opacity-75"
+            style={{
+              position: 'relative', width: 38, height: 38,
+              borderRadius: 999, background: '#1e2235',
+              border: '1px solid #2d3148',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, cursor: 'pointer',
+            }}
           >
             🔔
             {unreadNotifications > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center">
+              <span style={{
+                position: 'absolute', top: -2, right: -2,
+                width: 18, height: 18, borderRadius: '50%',
+                background: '#ef4444', color: '#fff',
+                fontSize: 10, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
                 {unreadNotifications > 9 ? '9+' : unreadNotifications}
               </span>
             )}
           </button>
           <button
             onClick={() => navigate('/settings')}
-            className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center"
+            style={{
+              width: 38, height: 38, borderRadius: 999,
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: '#fff', fontWeight: 800, fontSize: 14,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
+            }}
           >
             {(business?.name || 'R')[0].toUpperCase()}
           </button>
         </div>
       </div>
 
-      <div className="px-5 pb-6 space-y-5">
-        {/* Stats */}
-        <div className="flex gap-3">
-          <StatCard label="Clientes activos" value={loading ? '—' : activeClients} />
-          <StatCard label="Recordatorios próximos" value={loading ? '—' : upcomingCount} color="text-warning" />
-          <StatCard label="En riesgo" value={loading ? '—' : atRisk.length} color="text-danger" />
-        </div>
+      {/* ── Revenue hero ── */}
+      <RevenueHero revenue={revenue} growth={growth} period={period} loading={loading} />
 
-        {/* Envío masivo */}
-        <button
-          onClick={() => navigate('/reminders/new')}
-          className="w-full card border-primary/30 bg-primary/5 flex items-center gap-3 text-left active:opacity-75"
-        >
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-xl">📢</div>
-          <div>
-            <p className="font-semibold text-text text-sm">Envío masivo</p>
-            <p className="text-text-muted text-xs">Envía a un segmento de clientes</p>
-          </div>
-          <svg className="w-4 h-4 text-text-muted ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+      {/* ── Mini stats ── */}
+      <div style={{ display: 'flex', gap: 10, padding: '12px 20px' }}>
+        <MiniStat
+          icon="👥" label="Clientes activos"
+          value={loading ? '—' : activeClients}
+          color="#6366f1" loading={loading}
+          onClick={() => navigate('/clients')}
+        />
+        <MiniStat
+          icon="📅" label="Citas hoy"
+          value={loading ? '—' : todayAppts.length}
+          color="#10b981" loading={loading}
+          onClick={() => navigate('/appointments')}
+        />
+        <MiniStat
+          icon="⚠️" label="En riesgo"
+          value={loading ? '—' : atRisk.length}
+          color={atRisk.length > 0 ? '#ef4444' : '#64748b'} loading={loading}
+          onClick={() => navigate('/clients')}
+        />
+      </div>
 
-        {/* Clientes en riesgo */}
+      <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* ── Citas de hoy ── */}
+        {(loading || todayAppts.length > 0) && (
+          <section>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>Citas de hoy</h2>
+              <button onClick={() => navigate('/appointments')} style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                Ver todas →
+              </button>
+            </div>
+            {loading ? (
+              <div style={{ height: 56, background: '#1e2235', borderRadius: 14, opacity: 0.5 }} />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {todayAppts.slice(0, 4).map((appt) => (
+                  <ApptRow key={appt.id} appt={appt} onClick={() => navigate('/appointments')} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Clientes en riesgo ── */}
         {atRisk.length > 0 && (
           <section>
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="font-semibold text-text text-sm">Clientes en riesgo</h2>
-              <button onClick={() => navigate('/clients')} className="text-primary text-xs">Ver todos</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>⚠️ Clientes en riesgo</h2>
+              <button onClick={() => navigate('/clients')} style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                Ver todos →
+              </button>
             </div>
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {atRisk.slice(0, 3).map((c) => {
                 const dias = daysSince(c.updated_at)
                 return (
                   <button
                     key={c.id}
                     onClick={() => navigate(`/clients/${c.id}`)}
-                    className="w-full card flex items-center gap-3 text-left active:opacity-75"
+                    className="active:opacity-75"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      background: '#1e2235', borderRadius: 14,
+                      padding: '10px 14px', border: '1px solid rgba(239,68,68,0.2)',
+                      textAlign: 'left', width: '100%',
+                    }}
                   >
-                    <div className="w-9 h-9 rounded-full bg-danger/20 text-danger font-bold text-sm flex items-center justify-center flex-shrink-0">
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                      background: 'rgba(239,68,68,0.12)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 15, fontWeight: 700, color: '#ef4444',
+                    }}>
                       {c.display_name[0].toUpperCase()}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-text text-sm truncate">{c.display_name}</p>
-                      <p className="text-text-muted text-xs">Sin visita hace {dias} días</p>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', margin: 0,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.display_name}
+                      </p>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+                        Sin visita hace {dias} días
+                      </p>
                     </div>
-                    <Badge variant="danger">{dias}d</Badge>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: '#ef4444',
+                      background: 'rgba(239,68,68,0.12)', borderRadius: 999,
+                      padding: '2px 8px', flexShrink: 0,
+                    }}>{dias}d</span>
                   </button>
                 )
               })}
@@ -131,109 +386,79 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* Citas de hoy */}
-        {(loading || todayAppts.length > 0) && (
+        {/* ── Próximos recordatorios ── */}
+        {(loading || reminders.length > 0) && (
           <section>
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="font-semibold text-text text-sm">Citas de hoy</h2>
-              <button onClick={() => navigate('/appointments')} className="text-primary text-xs">Ver todas</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>🔔 Recordatorios activos</h2>
+              <button onClick={() => navigate('/reminders')} style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                Ver todos →
+              </button>
             </div>
             {loading ? (
-              <div className="card h-14 bg-border/20 animate-pulse" />
-            ) : todayAppts.length === 0 ? null : (
-              <div className="space-y-2">
-                {todayAppts.slice(0, 4).map((appt) => {
-                  const time = appt.appointment_time
-                    ? String(appt.appointment_time).slice(0, 5)
-                    : appt.shift === 'morning' ? 'Mañana' : appt.shift === 'afternoon' ? 'Tarde' : appt.shift === 'evening' ? 'Noche' : '—'
-                  const statusColor = {
-                    requested: 'text-warning',
-                    confirmed: 'text-success',
-                    completed: 'text-text-muted',
-                    rejected: 'text-danger',
-                    cancelled: 'text-danger',
-                  }[appt.status] || 'text-text-muted'
-                  const statusLabel = {
-                    requested: 'Pendiente',
-                    confirmed: 'Confirmada',
-                    completed: 'Completada',
-                    rejected: 'Rechazada',
-                    cancelled: 'Cancelada',
-                  }[appt.status] || appt.status
-                  return (
-                    <button
-                      key={appt.id}
-                      onClick={() => navigate('/appointments')}
-                      className="w-full card flex items-center gap-3 text-left active:opacity-75"
-                    >
-                      <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-lg flex-shrink-0">📅</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-text text-sm font-medium truncate">{appt.client_name || 'Cliente'}</p>
-                        <p className="text-text-muted text-xs truncate">{appt.service_name || '—'} · {time}</p>
-                      </div>
-                      <span className={`text-xs font-medium shrink-0 ${statusColor}`}>{statusLabel}</span>
-                    </button>
-                  )
-                })}
+              <div style={{ height: 56, background: '#1e2235', borderRadius: 14, opacity: 0.5 }} />
+            ) : reminders.length === 0 ? (
+              <div style={{
+                background: '#1e2235', borderRadius: 16, padding: '18px',
+                textAlign: 'center', border: '1px solid #2d3148',
+              }}>
+                <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>Sin recordatorios próximos</p>
+                <button
+                  onClick={() => navigate('/reminders/new')}
+                  style={{ color: '#6366f1', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', marginTop: 4 }}
+                >
+                  + Crear uno
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {reminders.slice(0, 3).map((r) => (
+                  <div
+                    key={r.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      background: '#1e2235', borderRadius: 14,
+                      padding: '10px 14px', border: '1px solid #2d3148',
+                    }}
+                  >
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                      background: 'rgba(99,102,241,0.12)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16,
+                    }}>🔔</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', margin: 0,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {clients.find((c) => c.id === r.client_id)?.display_name || 'Cliente'}
+                      </p>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+                        {r.next_send_date ? formatDate(r.next_send_date) : '—'}
+                      </p>
+                    </div>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: '#10b981',
+                      background: 'rgba(16,185,129,0.12)', borderRadius: 999,
+                      padding: '2px 8px',
+                    }}>Activo</span>
+                  </div>
+                ))}
               </div>
             )}
           </section>
         )}
 
-        {/* Próximos recordatorios */}
+        {/* ── Accesos rápidos ── */}
         <section>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-semibold text-text text-sm">Próximos recordatorios</h2>
-            <button onClick={() => navigate('/reminders')} className="text-primary text-xs">Ver todos</button>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', margin: '0 0 10px' }}>Accesos rápidos</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <QuickAction icon="👤" label="Nuevo cliente" color="#6366f1" bg="rgba(99,102,241,0.18)" onClick={() => navigate('/clients/new')} />
+            <QuickAction icon="🔔" label="Recordatorio" color="#f59e0b" bg="rgba(245,158,11,0.18)" onClick={() => navigate('/reminders/new')} />
+            <QuickAction icon="📊" label="Reportes" color="#10b981" bg="rgba(16,185,129,0.18)" onClick={() => navigate('/reports')} />
+            <QuickAction icon="📅" label="Citas" color="#8b5cf6" bg="rgba(139,92,246,0.18)" onClick={() => navigate('/appointments')} />
           </div>
-          {loading ? (
-            <div className="text-text-muted text-sm text-center py-4">Cargando...</div>
-          ) : reminders.length === 0 ? (
-            <div className="card text-center py-4">
-              <p className="text-text-muted text-sm">Sin recordatorios próximos</p>
-              <button onClick={() => navigate('/reminders/new')} className="text-primary text-sm font-medium mt-1">
-                + Crear uno
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {reminders.slice(0, 4).map((r) => (
-                <div key={r.id} className="card flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-lg flex-shrink-0">🔔</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-text text-sm font-medium truncate">
-                      {clients.find((c) => c.id === r.client_id)?.display_name || 'Cliente'}
-                    </p>
-                    <p className="text-text-muted text-xs">{r.next_send_date ? formatDate(r.next_send_date) : '—'}</p>
-                  </div>
-                  <Badge variant="success">Activo</Badge>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
 
-        {/* Acceso rápido */}
-        <section>
-          <h2 className="font-semibold text-text text-sm mb-2">Accesos rápidos</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { icon: '👤', label: 'Nuevo cliente', action: () => navigate('/clients/new') },
-              { icon: '🔔', label: 'Nuevo recordatorio', action: () => navigate('/reminders/new') },
-              { icon: '📊', label: 'Analytics', action: () => navigate('/analytics') },
-              { icon: '⚙️', label: 'Configuración', action: () => navigate('/settings') },
-            ].map((item) => (
-              <button
-                key={item.label}
-                onClick={item.action}
-                className="card flex items-center gap-2 text-left active:opacity-75"
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span className="text-text text-xs font-medium">{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </section>
       </div>
     </div>
   )
