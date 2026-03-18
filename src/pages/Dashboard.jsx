@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clientsApi, remindersApi, notificationsApi } from '../api'
+import { clientsApi, remindersApi, notificationsApi, appointmentsApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
 import { StatCard } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
@@ -22,19 +22,23 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const { business, clients, setClients } = useAppStore()
   const [reminders, setReminders] = useState([])
+  const [todayAppts, setTodayAppts] = useState([])
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!business?.id) return
+    const today = new Date().toISOString().slice(0, 10)
     Promise.all([
       clientsApi.list(business.id),
       remindersApi.list(business.id, { upcoming_days: 7 }),
       notificationsApi.unreadCount(business.id),
-    ]).then(([c, r, notifs]) => {
+      appointmentsApi.list(business.id, { from_date: today, to_date: today }).catch(() => []),
+    ]).then(([c, r, notifs, appts]) => {
       setClients(c)
       setReminders(r)
       setUnreadNotifications(notifs.count)
+      setTodayAppts(Array.isArray(appts) ? appts : [])
     }).finally(() => setLoading(false))
   }, [business?.id])
 
@@ -124,6 +128,55 @@ export default function DashboardPage() {
                 )
               })}
             </div>
+          </section>
+        )}
+
+        {/* Citas de hoy */}
+        {(loading || todayAppts.length > 0) && (
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="font-semibold text-text text-sm">Citas de hoy</h2>
+              <button onClick={() => navigate('/appointments')} className="text-primary text-xs">Ver todas</button>
+            </div>
+            {loading ? (
+              <div className="card h-14 bg-border/20 animate-pulse" />
+            ) : todayAppts.length === 0 ? null : (
+              <div className="space-y-2">
+                {todayAppts.slice(0, 4).map((appt) => {
+                  const time = appt.appointment_time
+                    ? String(appt.appointment_time).slice(0, 5)
+                    : appt.shift === 'morning' ? 'Mañana' : appt.shift === 'afternoon' ? 'Tarde' : appt.shift === 'evening' ? 'Noche' : '—'
+                  const statusColor = {
+                    requested: 'text-warning',
+                    confirmed: 'text-success',
+                    completed: 'text-text-muted',
+                    rejected: 'text-danger',
+                    cancelled: 'text-danger',
+                  }[appt.status] || 'text-text-muted'
+                  const statusLabel = {
+                    requested: 'Pendiente',
+                    confirmed: 'Confirmada',
+                    completed: 'Completada',
+                    rejected: 'Rechazada',
+                    cancelled: 'Cancelada',
+                  }[appt.status] || appt.status
+                  return (
+                    <button
+                      key={appt.id}
+                      onClick={() => navigate('/appointments')}
+                      className="w-full card flex items-center gap-3 text-left active:opacity-75"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-lg flex-shrink-0">📅</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-text text-sm font-medium truncate">{appt.client_name || 'Cliente'}</p>
+                        <p className="text-text-muted text-xs truncate">{appt.service_name || '—'} · {time}</p>
+                      </div>
+                      <span className={`text-xs font-medium shrink-0 ${statusColor}`}>{statusLabel}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </section>
         )}
 

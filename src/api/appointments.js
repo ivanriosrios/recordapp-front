@@ -13,8 +13,8 @@ export const appointmentsApi = {
   reject: (businessId, appointmentId) =>
     api.post(`/businesses/${businessId}/appointments/${appointmentId}/reject`),
 
-  complete: (businessId, appointmentId) =>
-    api.post(`/businesses/${businessId}/appointments/${appointmentId}/complete`),
+  complete: (businessId, appointmentId, data = {}) =>
+    api.post(`/businesses/${businessId}/appointments/${appointmentId}/complete`, data),
 
   update: (businessId, appointmentId, data) =>
     api.patch(`/businesses/${businessId}/appointments/${appointmentId}`, data),

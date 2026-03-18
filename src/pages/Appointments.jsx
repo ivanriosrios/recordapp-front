@@ -5,6 +5,142 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import Header from '../components/layout/Header'
 
+// ─── Modal de cierre de servicio ──────────────────────────────────────────────
+
+const PAYMENT_OPTIONS = [
+  { value: 'efectivo',      label: '💵 Efectivo' },
+  { value: 'tarjeta',       label: '💳 Tarjeta' },
+  { value: 'transferencia', label: '🏦 Transferencia' },
+  { value: 'otro',          label: '📦 Otro' },
+]
+
+function CompleteModal({ appt, onClose, onDone }) {
+  const [price, setPrice] = useState('')
+  const [method, setMethod] = useState('')
+  const [notes, setNotes] = useState('')
+  const [sendSummary, setSendSummary] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const { business } = useAppStore()
+
+  const handleSubmit = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      await appointmentsApi.complete(business.id, appt.id, {
+        price_charged: price ? parseFloat(price) : null,
+        payment_method: method || null,
+        service_notes: notes || null,
+        send_summary: sendSummary,
+        create_service_log: true,
+      })
+      onDone()
+    } catch {
+      setError('Error al completar la cita')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+      <div className="w-full max-w-lg bg-card rounded-t-2xl p-5 space-y-4 pb-8">
+        {/* Handle */}
+        <div className="flex justify-center mb-1">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+
+        <div>
+          <h3 className="font-bold text-text text-base">Completar servicio</h3>
+          <p className="text-text-muted text-sm truncate">
+            {appt.client_name || 'Cliente'} · {appt.service_name || '—'}
+          </p>
+        </div>
+
+        {/* Precio */}
+        <div className="space-y-1">
+          <label className="text-sm text-text-muted">Precio cobrado (opcional)</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              placeholder="0"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="input-base w-full pl-7"
+            />
+          </div>
+        </div>
+
+        {/* Método de pago */}
+        <div className="space-y-1">
+          <label className="text-sm text-text-muted">Método de pago</label>
+          <div className="grid grid-cols-2 gap-2">
+            {PAYMENT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setMethod(method === opt.value ? '' : opt.value)}
+                className={`py-2 rounded-xl border text-sm font-medium transition-colors ${
+                  method === opt.value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-surface text-text-muted'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Notas */}
+        <div className="space-y-1">
+          <label className="text-sm text-text-muted">Notas del servicio (opcional)</label>
+          <textarea
+            rows={2}
+            placeholder="Ej: corte degradado, se usó tinte n°4..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="input-base w-full resize-none"
+          />
+        </div>
+
+        {/* Enviar resumen WA */}
+        <div className="flex items-center justify-between py-2 border-t border-border">
+          <div>
+            <p className="text-sm font-medium text-text">Enviar resumen por WhatsApp</p>
+            <p className="text-xs text-text-muted">Comprobante con precio y detalles al cliente</p>
+          </div>
+          <button
+            onClick={() => setSendSummary(!sendSummary)}
+            className={`relative w-12 h-6 rounded-full transition-colors ${sendSummary ? 'bg-primary' : 'bg-border'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${sendSummary ? 'translate-x-7' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
+        {error && <p className="text-danger text-sm">{error}</p>}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl border border-border text-text-muted text-sm font-medium"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold disabled:opacity-60"
+          >
+            {saving ? 'Guardando...' : 'Completar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Constantes de UI ─────────────────────────────────────────────────────────
 
 const STATUS_LABEL = {
@@ -206,6 +342,7 @@ function AllAppointmentsTab({ businessId }) {
   const [actionLoading, setActionLoading] = useState(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState('')
+  const [completeTarget, setCompleteTarget] = useState(null)  // appt a completar
 
   const load = useCallback(() => {
     setLoading(true)
@@ -219,13 +356,8 @@ function AllAppointmentsTab({ businessId }) {
 
   useEffect(() => { load() }, [load])
 
-  const handleComplete = async (id) => {
-    setActionLoading(`complete-${id}`)
-    try {
-      await appointmentsApi.complete(businessId, id)
-      load()
-    } catch { setError('Error completando cita') }
-    finally { setActionLoading(null) }
+  const handleComplete = (appt) => {
+    setCompleteTarget(appt)
   }
 
   return (
@@ -264,10 +396,18 @@ function AllAppointmentsTab({ businessId }) {
             appt={appt}
             onConfirm={() => {}}
             onReject={() => {}}
-            onComplete={handleComplete}
+            onComplete={() => handleComplete(appt)}
             loading={actionLoading}
           />
         ))
+      )}
+
+      {completeTarget && (
+        <CompleteModal
+          appt={completeTarget}
+          onClose={() => setCompleteTarget(null)}
+          onDone={() => { setCompleteTarget(null); load() }}
+        />
       )}
     </div>
   )
