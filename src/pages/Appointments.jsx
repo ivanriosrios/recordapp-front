@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { appointmentsApi, scheduleApi } from '../api'
+import { clientsApi } from '../api'
+import { servicesApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -141,6 +143,151 @@ function CompleteModal({ appt, onClose, onDone }) {
   )
 }
 
+// ─── Modal: Nueva cita manual ─────────────────────────────────────────────────
+
+function NewAppointmentModal({ businessId, onClose, onDone }) {
+  const [clients, setClients]   = useState([])
+  const [services, setServices] = useState([])
+  const [clientId, setClientId]   = useState('')
+  const [serviceId, setServiceId] = useState('')
+  const [date, setDate]     = useState('')
+  const [time, setTime]     = useState('')
+  const [notes, setNotes]   = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState('')
+
+  // Cargamos clientes y servicios al abrir el modal
+  useEffect(() => {
+    clientsApi.list(businessId).then(setClients).catch(() => {})
+    servicesApi.list(businessId).then(r => setServices(Array.isArray(r) ? r : r.items ?? [])).catch(() => {})
+  }, [businessId])
+
+  const handleSubmit = async () => {
+    if (!clientId || !serviceId || !date) {
+      setError('Cliente, servicio y fecha son obligatorios')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      await appointmentsApi.create(businessId, {
+        client_id:        clientId,
+        service_id:       serviceId,
+        appointment_date: date,
+        appointment_time: time || null,
+        notes:            notes || null,
+        status:           'confirmed',
+      })
+      onDone()
+    } catch (e) {
+      setError(e?.message || 'Error creando cita')
+      setSaving(false)
+    }
+  }
+
+  // Fecha mínima = hoy
+  const today = new Date().toISOString().split('T')[0]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+      <div className="w-full max-w-lg bg-card rounded-t-2xl p-5 space-y-4 pb-8">
+        <div className="flex justify-center mb-1">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-text text-base">Nueva cita</h3>
+          <button onClick={onClose} className="text-text-muted text-lg">✕</button>
+        </div>
+
+        {/* Cliente */}
+        <div className="space-y-1">
+          <label className="text-sm text-text-muted">Cliente *</label>
+          <select
+            value={clientId}
+            onChange={e => setClientId(e.target.value)}
+            className="input-base w-full"
+          >
+            <option value="">Seleccionar cliente...</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.display_name} — {c.phone}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Servicio */}
+        <div className="space-y-1">
+          <label className="text-sm text-text-muted">Servicio *</label>
+          <select
+            value={serviceId}
+            onChange={e => setServiceId(e.target.value)}
+            className="input-base w-full"
+          >
+            <option value="">Seleccionar servicio...</option>
+            {services.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.name}{s.ref_price ? ` — $${Number(s.ref_price).toLocaleString()}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Fecha y hora */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-sm text-text-muted">Fecha *</label>
+            <input
+              type="date"
+              min={today}
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="input-base w-full"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm text-text-muted">Hora (opcional)</label>
+            <input
+              type="time"
+              value={time}
+              onChange={e => setTime(e.target.value)}
+              className="input-base w-full"
+            />
+          </div>
+        </div>
+
+        {/* Notas */}
+        <div className="space-y-1">
+          <label className="text-sm text-text-muted">Notas (opcional)</label>
+          <textarea
+            rows={2}
+            placeholder="Observaciones, detalles del servicio..."
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            className="input-base w-full resize-none"
+          />
+        </div>
+
+        {error && <p className="text-danger text-sm">{error}</p>}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl border border-border text-text-muted text-sm font-medium"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving}
+            className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold disabled:opacity-60"
+          >
+            {saving ? 'Guardando...' : 'Crear cita'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Constantes de UI ─────────────────────────────────────────────────────────
 
 const STATUS_LABEL = {
@@ -263,20 +410,25 @@ function AppointmentCard({ appt, onConfirm, onReject, onComplete, loading }) {
   )
 }
 
-// ─── Tab: Pendientes ──────────────────────────────────────────────────────────
+// ─── Tab: Activas (requested + confirmed) ─────────────────────────────────────
 
 function PendingTab({ businessId }) {
   const [appointments, setAppointments] = useState([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
   const [error, setError] = useState('')
+  const [showNew, setShowNew] = useState(false)
+  const [completeTarget, setCompleteTarget] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
     setError('')
+    // Cargamos todas y filtramos por las que necesitan acción
     appointmentsApi
-      .list(businessId, { status: 'requested' })
-      .then(setAppointments)
+      .list(businessId)
+      .then(all => setAppointments(
+        all.filter(a => a.status === 'requested' || a.status === 'confirmed')
+      ))
       .catch((e) => setError(e?.message || 'Error cargando citas'))
       .finally(() => setLoading(false))
   }, [businessId])
@@ -285,44 +437,96 @@ function PendingTab({ businessId }) {
 
   const handleConfirm = async (id) => {
     setActionLoading(`confirm-${id}`)
-    try {
-      await appointmentsApi.confirm(businessId, id)
-      load()
-    } catch { setError('Error confirmando cita') }
+    try { await appointmentsApi.confirm(businessId, id); load() }
+    catch { setError('Error confirmando cita') }
     finally { setActionLoading(null) }
   }
 
   const handleReject = async (id) => {
     setActionLoading(`reject-${id}`)
-    try {
-      await appointmentsApi.reject(businessId, id)
-      load()
-    } catch { setError('Error rechazando cita') }
+    try { await appointmentsApi.reject(businessId, id); load() }
+    catch { setError('Error rechazando cita') }
     finally { setActionLoading(null) }
   }
+
+  const requested  = appointments.filter(a => a.status === 'requested')
+  const confirmed  = appointments.filter(a => a.status === 'confirmed')
 
   if (loading) return <LoadingState />
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Botón nueva cita */}
+      <button
+        onClick={() => setShowNew(true)}
+        className="w-full py-3 rounded-xl border-2 border-dashed border-primary/40 text-primary text-sm font-semibold flex items-center justify-center gap-2 hover:bg-primary/5 transition-colors"
+      >
+        <span className="text-lg">+</span> Nueva cita
+      </button>
+
       {error && <ErrorBanner msg={error} onClose={() => setError('')} />}
-      {appointments.length === 0 ? (
+
+      {/* Sección: Por confirmar */}
+      {requested.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-text-muted uppercase tracking-wide px-1">
+            Por confirmar ({requested.length})
+          </p>
+          {requested.map(appt => (
+            <AppointmentCard
+              key={appt.id}
+              appt={appt}
+              onConfirm={handleConfirm}
+              onReject={handleReject}
+              onComplete={() => {}}
+              loading={actionLoading}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Sección: Confirmadas — listas para completar */}
+      {confirmed.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-text-muted uppercase tracking-wide px-1">
+            Confirmadas — marcar al terminar ({confirmed.length})
+          </p>
+          {confirmed.map(appt => (
+            <AppointmentCard
+              key={appt.id}
+              appt={appt}
+              onConfirm={() => {}}
+              onReject={() => {}}
+              onComplete={() => setCompleteTarget(appt)}
+              loading={actionLoading}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {appointments.length === 0 && (
         <EmptyState
           icon="✅"
-          title="Sin citas pendientes"
-          description="Las nuevas solicitudes de tus clientes aparecerán aquí"
+          title="Sin citas activas"
+          description="Crea una cita manual o espera solicitudes de tus clientes por WhatsApp"
         />
-      ) : (
-        appointments.map((appt) => (
-          <AppointmentCard
-            key={appt.id}
-            appt={appt}
-            onConfirm={handleConfirm}
-            onReject={handleReject}
-            onComplete={() => {}}
-            loading={actionLoading}
-          />
-        ))
+      )}
+
+      {/* Modales */}
+      {showNew && (
+        <NewAppointmentModal
+          businessId={businessId}
+          onClose={() => setShowNew(false)}
+          onDone={() => { setShowNew(false); load() }}
+        />
+      )}
+      {completeTarget && (
+        <CompleteModal
+          appt={completeTarget}
+          onClose={() => setCompleteTarget(null)}
+          onDone={() => { setCompleteTarget(null); load() }}
+        />
       )}
     </div>
   )
@@ -449,9 +653,6 @@ function ScheduleTab({ businessId }) {
   const [maxDays, setMaxDays] = useState(14)
   const [isActive, setIsActive] = useState(true)
   const [scheduleData, setScheduleData] = useState(DEFAULT_SLOTS)
-  const [jsonError, setJsonError] = useState('')
-  const [jsonText, setJsonText] = useState('')
-  const [jsonMode, setJsonMode] = useState(false)
 
   useEffect(() => {
     scheduleApi
@@ -463,32 +664,19 @@ function ScheduleTab({ businessId }) {
         setMaxDays(s.max_days_ahead)
         setIsActive(s.is_active)
         setScheduleData(s.schedule_data)
-        setJsonText(JSON.stringify(s.schedule_data, null, 2))
       })
       .catch((e) => {
         if (e?.status !== 404) setError('Error cargando horario')
-        setJsonText(JSON.stringify(DEFAULT_SLOTS, null, 2))
       })
       .finally(() => setLoading(false))
   }, [businessId])
 
   const handleSave = async () => {
-    let finalData = scheduleData
-    if (jsonMode) {
-      try {
-        finalData = JSON.parse(jsonText)
-        setJsonError('')
-      } catch {
-        setJsonError('JSON inválido — revisa la sintaxis')
-        return
-      }
-    }
-
     setSaving(true)
     try {
       const saved = await scheduleApi.upsert(businessId, {
         mode,
-        schedule_data: finalData,
+        schedule_data: scheduleData,
         slot_duration_minutes: slotDuration,
         max_days_ahead: maxDays,
         is_active: isActive,
@@ -600,69 +788,43 @@ function ScheduleTab({ businessId }) {
 
       {/* Días y horarios */}
       <div className="card p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="font-semibold text-text">Días disponibles</p>
-          <button
-            onClick={() => setJsonMode(!jsonMode)}
-            className="text-xs text-primary underline"
-          >
-            {jsonMode ? 'Vista simple' : 'Editar JSON'}
-          </button>
-        </div>
-
-        {jsonMode ? (
-          <div className="space-y-2">
-            <textarea
-              className="input-base w-full font-mono text-xs"
-              rows={14}
-              value={jsonText}
-              onChange={(e) => setJsonText(e.target.value)}
-            />
-            {jsonError && <p className="text-xs text-danger">{jsonError}</p>}
-            <p className="text-xs text-text-muted">
-              {mode === 'time_slots'
-                ? 'Formato: {"monday": ["09:00","10:00"], ...}'
-                : 'Formato: {"monday": {"morning":3,"afternoon":2}, ...}'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {WEEK_DAYS.map(({ key, label }) => {
-              const active = Boolean(scheduleData[key])
-              const slots = scheduleData[key]
-              return (
-                <div
-                  key={key}
-                  className={`rounded-xl border p-3 transition-colors ${active ? 'border-primary/30 bg-primary/5' : 'border-border'}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className={`text-sm font-medium ${active ? 'text-primary' : 'text-text-muted'}`}>
-                      {label}
-                    </p>
-                    <button
-                      onClick={() => toggleDay(key)}
-                      className={`relative w-10 h-5 rounded-full transition-colors ${active ? 'bg-primary' : 'bg-border'}`}
-                    >
-                      <span
-                        className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${active ? 'translate-x-5' : 'translate-x-0.5'}`}
-                      />
-                    </button>
-                  </div>
-                  {active && mode === 'time_slots' && Array.isArray(slots) && (
-                    <p className="text-xs text-text-muted mt-1">
-                      {slots.join(' · ')}
-                    </p>
-                  )}
-                  {active && mode === 'capacity' && typeof slots === 'object' && !Array.isArray(slots) && (
-                    <p className="text-xs text-text-muted mt-1">
-                      {Object.entries(slots).map(([k, v]) => `${SHIFT_LABEL[k] || k}: ${v}`).join(' · ')}
-                    </p>
-                  )}
+        <p className="font-semibold text-text">Días disponibles</p>
+        <div className="space-y-2">
+          {WEEK_DAYS.map(({ key, label }) => {
+            const active = Boolean(scheduleData[key])
+            const slots = scheduleData[key]
+            return (
+              <div
+                key={key}
+                className={`rounded-xl border p-3 transition-colors ${active ? 'border-primary/30 bg-primary/5' : 'border-border'}`}
+              >
+                <div className="flex items-center justify-between">
+                  <p className={`text-sm font-medium ${active ? 'text-primary' : 'text-text-muted'}`}>
+                    {label}
+                  </p>
+                  <button
+                    onClick={() => toggleDay(key)}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${active ? 'bg-primary' : 'bg-border'}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${active ? 'translate-x-5' : 'translate-x-0.5'}`}
+                    />
+                  </button>
                 </div>
-              )
-            })}
-          </div>
-        )}
+                {active && mode === 'time_slots' && Array.isArray(slots) && (
+                  <p className="text-xs text-text-muted mt-1">
+                    {slots.join(' · ')}
+                  </p>
+                )}
+                {active && mode === 'capacity' && typeof slots === 'object' && !Array.isArray(slots) && (
+                  <p className="text-xs text-text-muted mt-1">
+                    {Object.entries(slots).map(([k, v]) => `${SHIFT_LABEL[k] || k}: ${v}`).join(' · ')}
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <Button
@@ -715,8 +877,8 @@ function ErrorBanner({ msg, onClose }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'pending', label: 'Pendientes' },
-  { key: 'all',     label: 'Todas' },
+  { key: 'pending',  label: 'Activas' },
+  { key: 'all',      label: 'Historial' },
   { key: 'schedule', label: 'Horario' },
 ]
 

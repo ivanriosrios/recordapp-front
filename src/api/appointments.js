@@ -7,6 +7,9 @@ export const appointmentsApi = {
   get: (businessId, appointmentId) =>
     api.get(`/businesses/${businessId}/appointments/${appointmentId}`),
 
+  create: (businessId, data) =>
+    api.post(`/businesses/${businessId}/appointments/`, data),
+
   confirm: (businessId, appointmentId) =>
     api.post(`/businesses/${businessId}/appointments/${appointmentId}/confirm`),
 
