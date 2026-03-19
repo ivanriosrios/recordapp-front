@@ -20,7 +20,7 @@ const tabs = [
     ),
   },
   {
-    to: '/reminders',
+    to: '/notifications',
     label: 'Avisos',
     icon: (active) => (
       <svg className="w-6 h-6" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.75} viewBox="0 0 24 24">

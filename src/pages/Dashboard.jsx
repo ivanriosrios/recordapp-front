@@ -391,7 +391,7 @@ export default function DashboardPage() {
           <section>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>🔔 Recordatorios activos</h2>
-              <button onClick={() => navigate('/reminders')} style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+              <button onClick={() => navigate('/notifications')} style={{ fontSize: 12, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
                 Ver todos →
               </button>
             </div>
