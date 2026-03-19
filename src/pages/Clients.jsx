@@ -283,6 +283,7 @@ function ClientDetail() {
   const client = clients.find((c) => c.id === id)
   const [serviceLogs, setServiceLogs] = useState([])
   const [loadingLogs, setLoadingLogs] = useState(true)
+  const [expandedLogId, setExpandedLogId] = useState(null)
 
   useEffect(() => {
     if (!business?.id || !id) return
@@ -302,11 +303,24 @@ function ClientDetail() {
   }
 
   const GENDER_LABEL = { male: 'Hombre', female: 'Mujer', other: 'Otro' }
-  const dias = daysSince(client.updated_at)
+  const PAYMENT_LABEL = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', other: 'Otro' }
+
   const isBirthday =
     client.birth_date &&
     new Date(client.birth_date).toLocaleDateString('es-CO', { month: '2-digit', day: '2-digit' }) ===
       new Date().toLocaleDateString('es-CO', { month: '2-digit', day: '2-digit' })
+
+  // ── Estadísticas calculadas ──────────────────────────────────────────
+  const totalVisits   = serviceLogs.length
+  const totalSpent    = serviceLogs.reduce((s, l) => s + (l.price_charged || 0), 0)
+  const ratedLogs     = serviceLogs.filter((l) => l.rating !== null)
+  const goodRatings   = ratedLogs.filter((l) => l.rating >= 3).length
+  const satisfPct     = ratedLogs.length > 0 ? Math.round((goodRatings / ratedLogs.length) * 100) : null
+  const lastLog       = serviceLogs[0]
+  const daysSinceLast = lastLog ? daysSince(lastLog.completed_at) : null
+
+  const formatCOP = (n) =>
+    n ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n) : '—'
 
   return (
     <div>
@@ -330,7 +344,49 @@ function ClientDetail() {
           </div>
         )}
 
-        {/* Info básica */}
+        {/* Estadísticas clave */}
+        {!loadingLogs && totalVisits > 0 && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="card text-center">
+              <p className="text-2xl font-bold text-primary">{totalVisits}</p>
+              <p className="text-text-muted text-xs mt-0.5">Visitas totales</p>
+            </div>
+            <div className="card text-center">
+              <p className="text-2xl font-bold text-success">{formatCOP(totalSpent)}</p>
+              <p className="text-text-muted text-xs mt-0.5">Total gastado</p>
+            </div>
+            <div className="card text-center">
+              {satisfPct !== null ? (
+                <>
+                  <p className={`text-2xl font-bold ${satisfPct >= 70 ? 'text-success' : 'text-danger'}`}>{satisfPct}%</p>
+                  <p className="text-text-muted text-xs mt-0.5">Satisfacción ({ratedLogs.length} enc.)</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold text-text-muted">—</p>
+                  <p className="text-text-muted text-xs mt-0.5">Sin encuestas</p>
+                </>
+              )}
+            </div>
+            <div className="card text-center">
+              {daysSinceLast !== null ? (
+                <>
+                  <p className={`text-2xl font-bold ${daysSinceLast > 60 ? 'text-warning' : 'text-text'}`}>
+                    {daysSinceLast === 0 ? 'Hoy' : `${daysSinceLast}d`}
+                  </p>
+                  <p className="text-text-muted text-xs mt-0.5">Última visita</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold text-text-muted">—</p>
+                  <p className="text-text-muted text-xs mt-0.5">Última visita</p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Info de contacto */}
         <div className="card space-y-2.5">
           {[
             { icon: '📱', label: 'Teléfono', value: client.phone },
@@ -350,19 +406,11 @@ function ClientDetail() {
             ))}
         </div>
 
-        {/* Notas */}
+        {/* Notas del cliente */}
         {client.notes && (
           <div className="card">
-            <p className="text-text-muted text-xs mb-1">Notas</p>
+            <p className="text-text-muted text-xs mb-1">📝 Notas del cliente</p>
             <p className="text-text text-sm">{client.notes}</p>
-          </div>
-        )}
-
-        {/* Última visita */}
-        {dias !== null && (
-          <div className="card flex items-center justify-between">
-            <span className="text-text-muted text-sm">Última actividad</span>
-            <Badge variant={dias > 60 ? 'warning' : 'success'}>{dias === 0 ? 'Hoy' : `hace ${dias} días`}</Badge>
           </div>
         )}
 
@@ -377,40 +425,96 @@ function ClientDetail() {
               + Registrar
             </button>
           </div>
+
           {loadingLogs ? (
             <div className="text-text-muted text-xs text-center py-3">Cargando...</div>
           ) : serviceLogs.length === 0 ? (
-            <div className="card text-center py-3">
-              <p className="text-text-muted text-xs">Sin servicios registrados</p>
+            <div className="card text-center py-4">
+              <p className="text-text-muted text-xs">Sin servicios registrados aún</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {serviceLogs.slice(0, 5).map((log) => (
-                <div key={log.id} className="card flex items-center justify-between">
-                  <div>
-                    <p className="text-text text-sm font-medium">{log.service_name || 'Servicio'}</p>
-                    <p className="text-text-muted text-xs">{formatDate(log.completed_at)}</p>
+              {serviceLogs.map((log) => {
+                const isOpen = expandedLogId === log.id
+                const ratingBadge = log.rating !== null
+                  ? <Badge variant={log.rating >= 3 ? 'success' : 'danger'}>{log.rating >= 3 ? '⭐ Satisfecho' : '😟 Insatisfecho'}</Badge>
+                  : log.follow_up_sent
+                    ? <Badge variant="warning">💬 Esperando</Badge>
+                    : <Badge variant="muted">📩 Pendiente</Badge>
+
+                return (
+                  <div key={log.id} className="card p-0 overflow-hidden">
+                    {/* Cabecera de la tarjeta */}
+                    <button
+                      className="w-full flex items-center justify-between px-4 py-3 text-left"
+                      onClick={() => setExpandedLogId(isOpen ? null : log.id)}
+                    >
+                      <div>
+                        <p className="text-text text-sm font-medium">{log.service_name || 'Servicio'}</p>
+                        <p className="text-text-muted text-xs">{formatDate(log.completed_at)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {ratingBadge}
+                        <span className="text-text-muted text-xs ml-1">{isOpen ? '▲' : '▼'}</span>
+                      </div>
+                    </button>
+
+                    {/* Panel expandido */}
+                    {isOpen && (
+                      <div className="px-4 pb-4 border-t border-border pt-3 space-y-2.5">
+                        {/* Precio y pago */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-surface rounded-lg px-3 py-2">
+                            <p className="text-text-muted text-xs">Precio cobrado</p>
+                            <p className="text-text text-sm font-semibold">{log.price_charged ? formatCOP(log.price_charged) : '—'}</p>
+                          </div>
+                          <div className="bg-surface rounded-lg px-3 py-2">
+                            <p className="text-text-muted text-xs">Pago</p>
+                            <p className="text-text text-sm font-semibold">{log.payment_method ? (PAYMENT_LABEL[log.payment_method] || log.payment_method) : '—'}</p>
+                          </div>
+                        </div>
+
+                        {/* Fecha exacta */}
+                        <div className="bg-surface rounded-lg px-3 py-2">
+                          <p className="text-text-muted text-xs">Fecha y hora</p>
+                          <p className="text-text text-sm">
+                            {new Date(log.completed_at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}
+                          </p>
+                        </div>
+
+                        {/* Notas del servicio */}
+                        {log.service_notes && (
+                          <div className="bg-surface rounded-lg px-3 py-2">
+                            <p className="text-text-muted text-xs mb-0.5">Notas del servicio</p>
+                            <p className="text-text text-sm">{log.service_notes}</p>
+                          </div>
+                        )}
+
+                        {/* Notas generales */}
+                        {log.notes && (
+                          <div className="bg-surface rounded-lg px-3 py-2">
+                            <p className="text-text-muted text-xs mb-0.5">Notas generales</p>
+                            <p className="text-text text-sm">{log.notes}</p>
+                          </div>
+                        )}
+
+                        {/* Comprobante y calificación */}
+                        <div className="flex gap-2 flex-wrap">
+                          {log.summary_sent && (
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-lg">✅ Comprobante enviado</span>
+                          )}
+                          {log.rating !== null && (
+                            <span className={`text-xs px-2 py-1 rounded-lg ${log.rating >= 3 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+                              {log.rating >= 3 ? '⭐ Calificó positivo' : '😟 Calificó negativo'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {log.rating !== null ? (
-                    <Badge variant={log.rating >= 3 ? 'success' : 'danger'}>
-                      {log.rating >= 3 ? 'Satisfecho' : 'Insatisfecho'}
-                    </Badge>
-                  ) : log.follow_up_sent ? (
-                    <Badge variant="warning">Esperando</Badge>
-                  ) : (
-                    <Badge variant="muted">Pendiente</Badge>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
-          )}
-          {serviceLogs.length > 0 && (
-            <button
-              onClick={() => navigate(`/clients/${client.id}/history`)}
-              className="w-full mt-3 py-2 px-3 text-center text-primary text-sm font-medium hover:bg-primary/5 rounded-lg"
-            >
-              Ver historial completo
-            </button>
           )}
         </section>
 
