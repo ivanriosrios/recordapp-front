@@ -23,23 +23,69 @@ const STATUS_BADGE = {
   rejected: { variant: 'danger', label: 'Rechazada' },
 }
 
-// ─── Rating display ─────────────────────────────────────────────────────
-function RatingBadge({ rating }) {
-  if (rating === null || rating === undefined) {
-    return <Badge variant="muted">Pendiente</Badge>
-  }
-  if (rating >= 3) {
-    return <Badge variant="success">Satisfecho</Badge>
-  }
-  return <Badge variant="danger">Insatisfecho</Badge>
+// ─── Helpers de fecha ────────────────────────────────────────────────────
+function scheduledLabel(completedAt, followUpDays) {
+  const days = followUpDays ?? 2
+  const sendAt = new Date(completedAt)
+  sendAt.setDate(sendAt.getDate() + days)
+  const now = new Date()
+  const diff = Math.ceil((sendAt - now) / 86400000)
+  if (diff <= 0) return 'Hoy'
+  if (diff === 1) return 'Mañana'
+  return `En ${diff} días`
 }
 
-function FollowUpBadge({ sent, rating }) {
-  if (!sent) return <Badge variant="muted">Sin enviar</Badge>
-  if (rating !== null && rating !== undefined) {
-    return <RatingBadge rating={rating} />
+// ─── Rating display ─────────────────────────────────────────────────────
+function FollowUpBadge({ sent, rating, completedAt, followUpDays }) {
+  // Aún no enviada — mostrar cuándo se enviará
+  if (!sent) {
+    const label = scheduledLabel(completedAt, followUpDays)
+    const isUrgent = label === 'Hoy' || label === 'Mañana'
+    return (
+      <span style={{
+        fontSize: 11, fontWeight: 600,
+        color: isUrgent ? '#f59e0b' : '#64748b',
+        background: isUrgent ? 'rgba(245,158,11,0.1)' : 'rgba(100,116,139,0.1)',
+        border: `1px solid ${isUrgent ? 'rgba(245,158,11,0.25)' : 'rgba(100,116,139,0.2)'}`,
+        borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap',
+      }}>
+        📩 {label}
+      </span>
+    )
   }
-  return <Badge variant="warning">Esperando respuesta</Badge>
+  // Enviada, esperando respuesta
+  if (rating === null || rating === undefined) {
+    return (
+      <span style={{
+        fontSize: 11, fontWeight: 600, color: '#818cf8',
+        background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
+        borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap',
+      }}>
+        💬 Esperando
+      </span>
+    )
+  }
+  // Calificada
+  if (rating >= 3) {
+    return (
+      <span style={{
+        fontSize: 11, fontWeight: 600, color: '#10b981',
+        background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
+        borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap',
+      }}>
+        ⭐ Satisfecho
+      </span>
+    )
+  }
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 600, color: '#ef4444',
+      background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+      borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap',
+    }}>
+      😟 Insatisfecho
+    </span>
+  )
 }
 
 // ─── Lista de servicios completados ─────────────────────────────────────
@@ -48,6 +94,7 @@ function ServiceLogsList() {
   const { business } = useAppStore()
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expandedId, setExpandedId] = useState(null)
 
   useEffect(() => {
     if (!business?.id) return
@@ -56,12 +103,14 @@ function ServiceLogsList() {
       .finally(() => setLoading(false))
   }, [business?.id])
 
+  const toggleExpand = (id) => setExpandedId((prev) => (prev === id ? null : id))
+
   const stats = {
     total: logs.length,
-    rated: logs.filter((l) => l.rating !== null).length,
     good: logs.filter((l) => l.rating >= 3).length,
     bad: logs.filter((l) => l.rating !== null && l.rating < 3).length,
-    pending: logs.filter((l) => l.follow_up_sent && l.rating === null).length,
+    waiting: logs.filter((l) => l.follow_up_sent && l.rating === null).length,
+    scheduled: logs.filter((l) => !l.follow_up_sent).length,
   }
 
   return (
@@ -107,9 +156,20 @@ function ServiceLogsList() {
             <p className="text-[10px] text-text-muted">Insatisfechos</p>
           </div>
           <div className="flex-shrink-0 bg-card border border-border rounded-xl px-3 py-2 text-center min-w-[72px]">
-            <p className="text-lg font-bold text-warning">{stats.pending}</p>
+            <p className="text-lg font-bold text-primary">{stats.waiting}</p>
             <p className="text-[10px] text-text-muted">Esperando</p>
           </div>
+          <div className="flex-shrink-0 bg-card border border-border rounded-xl px-3 py-2 text-center min-w-[72px]">
+            <p className="text-lg font-bold text-warning">{stats.scheduled}</p>
+            <p className="text-[10px] text-text-muted">Prog.</p>
+          </div>
+        </div>
+
+        {/* Leyenda del flujo */}
+        <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(99,102,241,0.06)', borderRadius: 10, border: '1px solid rgba(99,102,241,0.12)' }}>
+          <p style={{ fontSize: 11, color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+            Flujo: Servicio completado → <span style={{ color: '#f59e0b' }}>📩 Encuesta programada</span> → <span style={{ color: '#818cf8' }}>💬 Esperando respuesta</span> → <span style={{ color: '#10b981' }}>⭐ Satisfecho</span> / <span style={{ color: '#ef4444' }}>😟 Insatisfecho</span>
+          </p>
         </div>
       </div>
 
@@ -129,41 +189,128 @@ function ServiceLogsList() {
             </button>
           </div>
         ) : (
-          logs.map((log) => (
-            <div key={log.id} className="card">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-text text-sm truncate">
-                    {log.client_name || 'Cliente'}
-                  </p>
-                  <p className="text-text-muted text-xs">{log.service_name || 'Servicio'}</p>
+          logs.map((log) => {
+            const isExpanded = expandedId === log.id
+            const sendAt = (() => {
+              const d = new Date(log.completed_at)
+              d.setDate(d.getDate() + (log.follow_up_days ?? 2))
+              return d
+            })()
+            const payLabel = { efectivo: '💵 Efectivo', tarjeta: '💳 Tarjeta', transferencia: '🏦 Transferencia' }
+            return (
+              <div
+                key={log.id}
+                className="card"
+                style={{ cursor: 'pointer', transition: 'border-color 0.2s', borderColor: isExpanded ? 'rgba(99,102,241,0.4)' : undefined }}
+                onClick={() => toggleExpand(log.id)}
+              >
+                {/* Fila principal */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-text text-sm truncate">{log.client_name || 'Cliente'}</p>
+                    <p className="text-text-muted text-xs">{log.service_name || 'Servicio'}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    {log.price_charged != null && (
+                      <span className="text-sm font-semibold text-text">
+                        ${Number(log.price_charged).toLocaleString('es-CO')}
+                      </span>
+                    )}
+                    <FollowUpBadge
+                      sent={log.follow_up_sent}
+                      rating={log.rating}
+                      completedAt={log.completed_at}
+                      followUpDays={log.follow_up_days}
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  {log.price_charged != null && (
-                    <span className="text-sm font-semibold text-text">
-                      ${Number(log.price_charged).toLocaleString('es-CO')}
-                    </span>
+
+                {/* Info base */}
+                <div className="flex items-center gap-3 mt-2 text-xs text-text-muted flex-wrap">
+                  <span>📅 {formatDate(log.completed_at)}</span>
+                  {log.payment_method && (
+                    <><span>•</span><span>{payLabel[log.payment_method] || log.payment_method}</span></>
                   )}
-                  <FollowUpBadge sent={log.follow_up_sent} rating={log.rating} />
+                  {!isExpanded && log.notes && (
+                    <><span>•</span><span className="truncate">{log.notes}</span></>
+                  )}
+                  <span style={{ marginLeft: 'auto', color: '#6366f1', fontSize: 11 }}>
+                    {isExpanded ? '▲ Menos' : '▼ Ver más'}
+                  </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 mt-2 text-xs text-text-muted flex-wrap">
-                <span>📅 {formatDate(log.completed_at)}</span>
-                {log.payment_method && (
-                  <>
-                    <span>•</span>
-                    <span>{log.payment_method === 'efectivo' ? '💵 Efectivo' : log.payment_method === 'tarjeta' ? '💳 Tarjeta' : log.payment_method === 'transferencia' ? '🏦 Transf.' : log.payment_method}</span>
-                  </>
+
+                {/* Panel expandido */}
+                {isExpanded && (
+                  <div
+                    style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(99,102,241,0.15)' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Estado encuesta */}
+                    <div style={{ marginBottom: 10, padding: '10px 12px', background: 'rgba(99,102,241,0.06)', borderRadius: 10 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado encuesta post-servicio</p>
+                      {!log.follow_up_sent ? (
+                        <p style={{ fontSize: 12, color: '#f59e0b', margin: 0 }}>
+                          📩 Se enviará automáticamente el <strong>{sendAt.toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}</strong>
+                        </p>
+                      ) : log.rating === null ? (
+                        <p style={{ fontSize: 12, color: '#818cf8', margin: 0 }}>💬 Encuesta enviada — esperando respuesta del cliente</p>
+                      ) : log.rating >= 3 ? (
+                        <p style={{ fontSize: 12, color: '#10b981', margin: 0 }}>⭐ Cliente <strong>satisfecho</strong> con el servicio</p>
+                      ) : (
+                        <p style={{ fontSize: 12, color: '#ef4444', margin: 0 }}>😟 Cliente <strong>insatisfecho</strong> — considera hacer seguimiento</p>
+                      )}
+                    </div>
+
+                    {/* Detalles del cierre */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {log.price_charged != null && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>💰 Cobrado</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>${Number(log.price_charged).toLocaleString('es-CO')}</span>
+                        </div>
+                      )}
+                      {log.payment_method && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>💳 Método de pago</span>
+                          <span style={{ fontSize: 12, color: '#e2e8f0' }}>{payLabel[log.payment_method] || log.payment_method}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>📅 Fecha y hora</span>
+                        <span style={{ fontSize: 12, color: '#e2e8f0' }}>
+                          {new Date(log.completed_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      {log.summary_sent && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>📱 Comprobante</span>
+                          <span style={{ fontSize: 12, color: '#10b981' }}>Enviado por WhatsApp</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Notas */}
+                    {(log.service_notes || log.notes) && (
+                      <div style={{ marginTop: 10, padding: '8px 10px', background: '#1a1d2e', borderRadius: 8 }}>
+                        {log.service_notes && (
+                          <div style={{ marginBottom: log.notes ? 6 : 0 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', margin: '0 0 2px', textTransform: 'uppercase' }}>Notas del servicio</p>
+                            <p style={{ fontSize: 12, color: '#cbd5e1', margin: 0 }}>{log.service_notes}</p>
+                          </div>
+                        )}
+                        {log.notes && (
+                          <div>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', margin: '0 0 2px', textTransform: 'uppercase' }}>Notas generales</p>
+                            <p style={{ fontSize: 12, color: '#cbd5e1', margin: 0 }}>{log.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
-                {log.notes && (
-                  <>
-                    <span>•</span>
-                    <span className="truncate">{log.notes}</span>
-                  </>
-                )}
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 
