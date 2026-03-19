@@ -134,29 +134,26 @@ function ReminderCard({ reminder, clientName, onSendNow, onPause, onResume, load
 
 // ─── Tarjeta de follow-up pendiente ─────────────────────────────────────
 function FollowUpCard({ log }) {
-  if (!log.follow_up_sent && log.follow_up_days) {
-    const completedAt = new Date(log.completed_at)
-    const sendAt = new Date(completedAt)
-    sendAt.setDate(sendAt.getDate() + (log.follow_up_days || 2))
-    return (
-      <div style={{
-        background: '#1a1d2e', border: '1px solid rgba(245,158,11,0.2)',
-        borderRadius: 14, padding: '12px 14px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 16 }}>📩</span>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
-              {log.client_name || 'Cliente'} — {log.service_name || 'Servicio'}
-            </p>
-            <FutureDate date={sendAt.toISOString()} />
-          </div>
+  const completedAt = new Date(log.completed_at)
+  const sendAt = new Date(completedAt)
+  sendAt.setDate(sendAt.getDate() + (log.follow_up_days ?? 2))
+  return (
+    <div style={{
+      background: '#1a1d2e', border: '1px solid rgba(245,158,11,0.2)',
+      borderRadius: 14, padding: '12px 14px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 16 }}>📩</span>
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
+            {log.client_name || 'Cliente'} — {log.service_name || 'Servicio'}
+          </p>
+          <FutureDate date={sendAt.toISOString()} />
         </div>
-        <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>Encuesta post-servicio pendiente de envío</p>
       </div>
-    )
-  }
-  return null
+      <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>Encuesta post-servicio pendiente de envío</p>
+    </div>
+  )
 }
 
 // ─── Página principal ────────────────────────────────────────────────────
