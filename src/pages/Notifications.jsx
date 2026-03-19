@@ -133,16 +133,53 @@ function ReminderCard({ reminder, clientName, onSendNow, onPause, onResume, load
 }
 
 // ─── Tarjeta de follow-up pendiente ─────────────────────────────────────
-function FollowUpCard({ log }) {
+function FollowUpCard({ log, businessId, onSent, onSkipped }) {
+  const [busy, setBusy] = useState(null) // 'send' | 'skip'
+  const [done, setDone] = useState(null) // 'sent' | 'skipped'
+
   const completedAt = new Date(log.completed_at)
   const sendAt = new Date(completedAt)
   sendAt.setDate(sendAt.getDate() + (log.follow_up_days ?? 2))
+
+  const handleSend = async () => {
+    setBusy('send')
+    try {
+      await serviceLogsApi.sendFollowUpNow(businessId, log.id)
+      setDone('sent')
+      setTimeout(() => onSent(log.id), 1500)
+    } catch {
+      setBusy(null)
+    }
+  }
+
+  const handleSkip = async () => {
+    setBusy('skip')
+    try {
+      await serviceLogsApi.skipFollowUp(businessId, log.id)
+      setDone('skipped')
+      setTimeout(() => onSkipped(log.id), 1000)
+    } catch {
+      setBusy(null)
+    }
+  }
+
+  if (done === 'sent') {
+    return (
+      <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 14, padding: '12px 14px' }}>
+        <p style={{ fontSize: 13, color: '#10b981', fontWeight: 600, margin: 0 }}>✅ Encuesta enviada a {log.client_name}</p>
+      </div>
+    )
+  }
+
+  if (done === 'skipped') return null
+
   return (
     <div style={{
       background: '#1a1d2e', border: '1px solid rgba(245,158,11,0.2)',
       borderRadius: 14, padding: '12px 14px',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      {/* Info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ fontSize: 16 }}>📩</span>
         <div>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
@@ -151,7 +188,34 @@ function FollowUpCard({ log }) {
           <FutureDate date={sendAt.toISOString()} />
         </div>
       </div>
-      <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>Encuesta post-servicio pendiente de envío</p>
+
+      {/* Acciones */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          onClick={handleSend}
+          disabled={!!busy}
+          style={{
+            flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            background: 'rgba(99,102,241,0.15)', color: '#818cf8',
+            border: '1px solid rgba(99,102,241,0.25)',
+            cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1,
+          }}
+        >
+          {busy === 'send' ? '⏳ Enviando...' : '▶ Enviar ahora'}
+        </button>
+        <button
+          onClick={handleSkip}
+          disabled={!!busy}
+          style={{
+            flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            background: 'rgba(239,68,68,0.08)', color: '#f87171',
+            border: '1px solid rgba(239,68,68,0.2)',
+            cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1,
+          }}
+        >
+          {busy === 'skip' ? '...' : '✕ Cancelar'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -464,7 +528,13 @@ export default function NotificationsPage() {
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {pendingFollowUps.map((l) => (
-                        <FollowUpCard key={l.id} log={l} />
+                        <FollowUpCard
+                          key={l.id}
+                          log={l}
+                          businessId={business.id}
+                          onSent={(id) => setPendingFollowUps((prev) => prev.filter((x) => x.id !== id))}
+                          onSkipped={(id) => setPendingFollowUps((prev) => prev.filter((x) => x.id !== id))}
+                        />
                       ))}
                     </div>
                   </div>

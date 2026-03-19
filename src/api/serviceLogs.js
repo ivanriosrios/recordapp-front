@@ -9,4 +9,10 @@ export const serviceLogsApi = {
 
   complete: (businessId, logId, data) =>
     api.post(`/businesses/${businessId}/service-logs/${logId}/complete`, data),
+
+  sendFollowUpNow: (businessId, logId) =>
+    api.post(`/businesses/${businessId}/service-logs/${logId}/send_followup`),
+
+  skipFollowUp: (businessId, logId) =>
+    api.post(`/businesses/${businessId}/service-logs/${logId}/skip_followup`),
 }
