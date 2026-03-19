@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { reportsApi } from '../api'
+import { reportsApi, serviceLogsApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
 import Header from '../components/layout/Header'
 
@@ -153,18 +153,21 @@ export default function ReportsPage() {
   const [timeline, setTimeline] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [satisfactionLogs, setSatisfactionLogs] = useState([])
 
   const load = async (p = period) => {
     if (!business?.id) return
     setLoading(true)
     setError(null)
     try {
-      const [summary, tl] = await Promise.all([
+      const [summary, tl, allLogs] = await Promise.all([
         reportsApi.income(business.id, { period: p }),
         reportsApi.timeline(business.id, { period: p }),
+        serviceLogsApi.list(business.id),
       ])
       setData(summary)
       setTimeline(tl)
+      setSatisfactionLogs(allLogs)
     } catch (err) {
       setError(err.message || 'Error al cargar reportes')
     } finally {
@@ -182,6 +185,22 @@ export default function ReportsPage() {
   }
 
   const prevLabel = PERIOD_PREV_LABEL[period] || 'vs. período anterior'
+
+  // Calcular satisfacción global (todos los períodos)
+  const satStats = (() => {
+    const withFollowUp = satisfactionLogs.filter((l) => l.follow_up_sent)
+    const rated = withFollowUp.filter((l) => l.rating !== null)
+    const good = rated.filter((l) => l.rating >= 3)
+    const bad = rated.filter((l) => l.rating !== null && l.rating < 3)
+    const pending = withFollowUp.filter((l) => l.rating === null)
+    const pct = rated.length > 0 ? Math.round((good.length / rated.length) * 100) : null
+    return { total: withFollowUp.length, rated: rated.length, good: good.length, bad: bad.length, pending: pending.length, pct }
+  })()
+
+  const recentRated = satisfactionLogs
+    .filter((l) => l.rating !== null)
+    .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+    .slice(0, 5)
 
   // Calcular growth de servicios
   const servicesGrowth = data
@@ -380,6 +399,83 @@ export default function ReportsPage() {
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Satisfacción de clientes */}
+          {satStats.total > 0 && (
+            <div className="card" style={{ padding: '16px' }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: '0 0 14px' }}>
+                ⭐ Satisfacción de clientes
+              </h3>
+
+              {/* KPIs satisfacción */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
+                <div style={{ background: 'rgba(16,185,129,0.1)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: '#10b981', margin: 0 }}>{satStats.good}</p>
+                  <p style={{ fontSize: 10, color: '#64748b', margin: '2px 0 0' }}>Satisfechos</p>
+                </div>
+                <div style={{ background: 'rgba(239,68,68,0.1)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: '#ef4444', margin: 0 }}>{satStats.bad}</p>
+                  <p style={{ fontSize: 10, color: '#64748b', margin: '2px 0 0' }}>Insatisfechos</p>
+                </div>
+                <div style={{ background: 'rgba(245,158,11,0.1)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b', margin: 0 }}>{satStats.pending}</p>
+                  <p style={{ fontSize: 10, color: '#64748b', margin: '2px 0 0' }}>Pendientes</p>
+                </div>
+              </div>
+
+              {/* Barra de satisfacción */}
+              {satStats.rated > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{satStats.rated} encuestas respondidas</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: satStats.pct >= 70 ? '#10b981' : '#ef4444' }}>
+                      {satStats.pct}% satisfacción
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: '#2d3148', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${satStats.pct}%`,
+                      background: satStats.pct >= 70
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : 'linear-gradient(90deg, #ef4444, #f87171)',
+                      borderRadius: 3,
+                      transition: 'width 0.5s ease',
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Últimas calificaciones */}
+              {recentRated.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Últimas respuestas</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {recentRated.map((l) => (
+                      <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#1a1d2e', borderRadius: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {l.client_name || 'Cliente'}
+                          </p>
+                          <p style={{ fontSize: 11, color: '#64748b', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {l.service_name || 'Servicio'}
+                          </p>
+                        </div>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700,
+                          color: l.rating >= 3 ? '#10b981' : '#ef4444',
+                          background: l.rating >= 3 ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+                          borderRadius: 6, padding: '3px 8px', flexShrink: 0, marginLeft: 8,
+                        }}>
+                          {l.rating >= 3 ? '⭐ Satisfecho' : '😟 Insatisfecho'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
