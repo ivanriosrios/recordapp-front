@@ -285,6 +285,47 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Banner WhatsApp no configurado ── */}
+      {business?.whatsapp_status && business.whatsapp_status !== 'active' && (
+        <div
+          onClick={() => navigate('/settings')}
+          style={{
+            margin: '0 20px 12px',
+            padding: '12px 14px',
+            borderRadius: 14,
+            background: business.whatsapp_status === 'sandbox'
+              ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)'
+              : 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+            border: `1px solid ${business.whatsapp_status === 'sandbox' ? '#bfdbfe' : '#fde68a'}`,
+            display: 'flex', alignItems: 'center', gap: 10,
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: 22 }}>
+            {business.whatsapp_status === 'sandbox' ? '🧪' : '⚠️'}
+          </span>
+          <div style={{ flex: 1 }}>
+            <p style={{
+              fontSize: 13, fontWeight: 700, margin: 0,
+              color: business.whatsapp_status === 'sandbox' ? '#1d4ed8' : '#92400e',
+            }}>
+              {business.whatsapp_status === 'sandbox'
+                ? 'WhatsApp en modo sandbox'
+                : 'WhatsApp no configurado'}
+            </p>
+            <p style={{
+              fontSize: 11, margin: 0, marginTop: 1,
+              color: business.whatsapp_status === 'sandbox' ? '#3b82f6' : '#b45309',
+            }}>
+              {business.whatsapp_status === 'sandbox'
+                ? 'Aprobación de Meta pendiente — toca para ver el estado'
+                : 'Los mensajes automáticos están desactivados — toca para configurar'}
+            </p>
+          </div>
+          <span style={{ fontSize: 16, color: '#94a3b8' }}>›</span>
+        </div>
+      )}
+
       {/* ── Revenue hero ── */}
       <RevenueHero revenue={revenue} growth={growth} period={period} loading={loading} />
 

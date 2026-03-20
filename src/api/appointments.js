@@ -19,8 +19,11 @@ export const appointmentsApi = {
   complete: (businessId, appointmentId, data = {}) =>
     api.post(`/businesses/${businessId}/appointments/${appointmentId}/complete`, data),
 
-  update: (businessId, appointmentId, data) =>
-    api.patch(`/businesses/${businessId}/appointments/${appointmentId}`, data),
+  cancel: (businessId, appointmentId) =>
+    api.post(`/businesses/${businessId}/appointments/${appointmentId}/cancel`),
+
+  update: (businessId, appointmentId, data, notify = true) =>
+    api.patch(`/businesses/${businessId}/appointments/${appointmentId}`, data, { params: { notify } }),
 }
 
 export const scheduleApi = {

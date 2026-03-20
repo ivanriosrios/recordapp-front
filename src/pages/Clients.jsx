@@ -179,11 +179,52 @@ function ClientsList() {
 }
 
 // ─── Nuevo cliente ───────────────────────────────────────────────────────
+// ─── Utilidades de teléfono ──────────────────────────────────────────────────
+const COUNTRY_FLAGS = [
+  { prefix: '57',  flag: '🇨🇴', name: 'Colombia' },
+  { prefix: '52',  flag: '🇲🇽', name: 'México' },
+  { prefix: '54',  flag: '🇦🇷', name: 'Argentina' },
+  { prefix: '55',  flag: '🇧🇷', name: 'Brasil' },
+  { prefix: '56',  flag: '🇨🇱', name: 'Chile' },
+  { prefix: '51',  flag: '🇵🇪', name: 'Perú' },
+  { prefix: '58',  flag: '🇻🇪', name: 'Venezuela' },
+  { prefix: '593', flag: '🇪🇨', name: 'Ecuador' },
+  { prefix: '595', flag: '🇵🇾', name: 'Paraguay' },
+  { prefix: '598', flag: '🇺🇾', name: 'Uruguay' },
+  { prefix: '503', flag: '🇸🇻', name: 'El Salvador' },
+  { prefix: '504', flag: '🇭🇳', name: 'Honduras' },
+  { prefix: '506', flag: '🇨🇷', name: 'Costa Rica' },
+  { prefix: '507', flag: '🇵🇦', name: 'Panamá' },
+  { prefix: '1',   flag: '🇺🇸', name: 'USA/Canadá' },
+]
+
+function getCountryFromPhone(phone) {
+  const digits = phone.replace(/\D/g, '')
+  for (const c of COUNTRY_FLAGS) {
+    if (digits.startsWith(c.prefix)) return c
+  }
+  return null
+}
+
+function validatePhone(phone) {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length < 7) return 'El teléfono debe tener al menos 7 dígitos'
+  if (digits.length > 15) return 'El teléfono es demasiado largo'
+  return null
+}
+
+function validateEmail(email) {
+  if (!email) return null
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return re.test(email) ? null : 'Correo electrónico inválido'
+}
+
 function NewClient() {
   const navigate = useNavigate()
   const { business, addClient } = useAppStore()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [touched, setTouched] = useState({})
   const [form, setForm] = useState({
     display_name: '',
     full_name: '',
@@ -196,9 +237,19 @@ function NewClient() {
   })
 
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }))
+  const touch = (key) => setTouched((p) => ({ ...p, [key]: true }))
+
+  const phoneError   = touched.phone ? validatePhone(form.phone) : null
+  const emailError   = touched.email ? validateEmail(form.email) : null
+  const countryInfo  = form.phone ? getCountryFromPhone(form.phone) : null
+  const canSubmit    = form.display_name.trim() && form.phone.trim() && !phoneError && !emailError
 
   const handleSubmit = async () => {
-    if (!form.display_name.trim() || !form.phone.trim()) return
+    setTouched({ phone: true, email: true })
+    const pErr = validatePhone(form.phone)
+    const eErr = validateEmail(form.email)
+    if (pErr || eErr || !form.display_name.trim()) return
+
     setLoading(true)
     setError(null)
     try {
@@ -226,8 +277,44 @@ function NewClient() {
       <div className="px-5 pb-6 space-y-0">
         <Input label="Apodo *" placeholder="Ivancho, Carlitos..." value={form.display_name} onChange={(e) => set('display_name', e.target.value)} />
         <Input label="Nombre completo" placeholder="Ivan Argemiro Rios" value={form.full_name} onChange={(e) => set('full_name', e.target.value)} />
-        <Input label="Teléfono WhatsApp *" placeholder="+57 300 123 4567" type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
-        <Input label="Correo electrónico" placeholder="cliente@email.com" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+
+        {/* Teléfono con bandera */}
+        <div className="mb-4">
+          <label className="block text-sm text-text-muted mb-1">Teléfono WhatsApp *</label>
+          <div className="relative">
+            {countryInfo && (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg select-none" title={countryInfo.name}>
+                {countryInfo.flag}
+              </span>
+            )}
+            <input
+              type="tel"
+              placeholder="+57 300 123 4567"
+              value={form.phone}
+              onChange={(e) => set('phone', e.target.value)}
+              onBlur={() => touch('phone')}
+              className={`input-base w-full ${countryInfo ? 'pl-10' : ''} ${phoneError ? 'border-danger' : ''}`}
+            />
+          </div>
+          {phoneError && <p className="text-danger text-xs mt-1">{phoneError}</p>}
+          {countryInfo && !phoneError && (
+            <p className="text-text-muted text-xs mt-1">{countryInfo.flag} {countryInfo.name}</p>
+          )}
+        </div>
+
+        {/* Email con validación */}
+        <div className="mb-4">
+          <label className="block text-sm text-text-muted mb-1">Correo electrónico</label>
+          <input
+            type="email"
+            placeholder="cliente@email.com"
+            value={form.email}
+            onChange={(e) => set('email', e.target.value)}
+            onBlur={() => touch('email')}
+            className={`input-base w-full ${emailError ? 'border-danger' : ''}`}
+          />
+          {emailError && <p className="text-danger text-xs mt-1">{emailError}</p>}
+        </div>
 
         {/* Fecha nacimiento + sexo */}
         <div className="flex gap-3">
@@ -267,7 +354,7 @@ function NewClient() {
           </div>
         )}
 
-        <Button onClick={handleSubmit} disabled={!form.display_name.trim() || !form.phone.trim() || loading}>
+        <Button onClick={handleSubmit} disabled={!canSubmit || loading}>
           {loading ? 'Guardando...' : 'Guardar cliente'}
         </Button>
       </div>

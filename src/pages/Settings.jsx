@@ -139,6 +139,181 @@ function HelpAccordion() {
   )
 }
 
+// ─── WhatsApp Setup ────────────────────────────────────────────────────────────
+
+const WA_STATUS_CONFIG = {
+  not_configured: {
+    color: 'bg-orange-100 text-orange-700 border-orange-200',
+    dot: 'bg-orange-400',
+    label: 'Sin configurar',
+    icon: '⚠️',
+  },
+  sandbox: {
+    color: 'bg-blue-50 text-blue-700 border-blue-200',
+    dot: 'bg-blue-400',
+    label: 'Sandbox activo',
+    icon: '🧪',
+  },
+  active: {
+    color: 'bg-green-50 text-green-700 border-green-200',
+    dot: 'bg-green-400',
+    label: 'WhatsApp activo',
+    icon: '✅',
+  },
+}
+
+const WA_STEPS = [
+  {
+    step: 1,
+    title: 'Crea tu cuenta Twilio',
+    desc: 'Ve a twilio.com y regístrate. Elige el balance inicial ($20 es suficiente para empezar).',
+    link: 'https://www.twilio.com/try-twilio',
+    linkLabel: 'Ir a Twilio →',
+    statuses: ['not_configured', 'sandbox', 'active'],
+  },
+  {
+    step: 2,
+    title: 'Activa el Sandbox de WhatsApp',
+    desc: 'En Twilio Console → Messaging → Try it out → Send a WhatsApp message. Conecta tu celular enviando el código de sandbox al número indicado. Úsalo para probar mientras Meta aprueba.',
+    link: 'https://console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn',
+    linkLabel: 'Abrir Sandbox →',
+    statuses: ['not_configured', 'sandbox'],
+  },
+  {
+    step: 3,
+    title: 'Solicita acceso a WhatsApp Business API',
+    desc: 'En Twilio Console → Messaging → Senders → WhatsApp senders → Request access. Necesitas un número dedicado y una cuenta de Facebook Business verificada. Meta tarda 1–3 días en aprobar.',
+    link: 'https://console.twilio.com/us1/develop/sms/senders/whatsapp-senders',
+    linkLabel: 'Solicitar acceso →',
+    statuses: ['not_configured', 'sandbox'],
+  },
+  {
+    step: 4,
+    title: 'Configura las variables en Railway',
+    desc: 'Una vez aprobado, copia el Account SID, Auth Token y tu número de WhatsApp Business de Twilio Console y agrégalos como variables de entorno en tu servicio de Railway.',
+    statuses: ['sandbox'],
+  },
+]
+
+function WhatsAppSetupSection({ business, setBusiness }) {
+  const status = business?.whatsapp_status || 'not_configured'
+  const cfg = WA_STATUS_CONFIG[status]
+  const [saving, setSaving] = useState(false)
+  const [openStep, setOpenStep] = useState(null)
+
+  const handleStatusChange = async (newStatus) => {
+    setSaving(true)
+    try {
+      const updated = await businessesApi.update(business.id, { whatsapp_status: newStatus })
+      setBusiness?.(updated)
+    } catch { /* silencioso */ }
+    finally { setSaving(false) }
+  }
+
+  const visibleSteps = WA_STEPS.filter(s => s.statuses.includes(status))
+
+  return (
+    <section className="space-y-3">
+      <h3 className="font-semibold text-text text-sm">WhatsApp Business</h3>
+      <div className="card space-y-4">
+        {/* Estado actual */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">{cfg.icon}</span>
+            <div>
+              <p className="text-sm font-semibold text-text">Estado actual</p>
+              <span className={`inline-flex items-center gap-1.5 mt-0.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${cfg.color}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                {cfg.label}
+              </span>
+            </div>
+          </div>
+          {/* Selector rápido de estado */}
+          {status !== 'active' && (
+            <div className="flex flex-col gap-1">
+              {status === 'not_configured' && (
+                <button
+                  onClick={() => handleStatusChange('sandbox')}
+                  disabled={saving}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-medium disabled:opacity-60"
+                >
+                  {saving ? '...' : 'Ya tengo Sandbox'}
+                </button>
+              )}
+              <button
+                onClick={() => handleStatusChange('active')}
+                disabled={saving}
+                className="text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200 font-medium disabled:opacity-60"
+              >
+                {saving ? '...' : 'Meta me aprobó ✅'}
+              </button>
+            </div>
+          )}
+          {status === 'active' && (
+            <button
+              onClick={() => handleStatusChange('not_configured')}
+              disabled={saving}
+              className="text-xs px-2.5 py-1 rounded-lg bg-surface text-text-muted border border-border font-medium disabled:opacity-60"
+            >
+              Reconfigurar
+            </button>
+          )}
+        </div>
+
+        {/* Pasos según estado */}
+        {status !== 'active' && (
+          <>
+            <div className="border-t border-border" />
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+                {status === 'not_configured' ? 'Pasos para activar' : 'Pendiente de aprobación'}
+              </p>
+              {visibleSteps.map(s => (
+                <div key={s.step} className="rounded-xl border border-border overflow-hidden">
+                  <button
+                    onClick={() => setOpenStep(openStep === s.step ? null : s.step)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left bg-surface"
+                  >
+                    <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
+                      {s.step}
+                    </span>
+                    <span className="text-sm font-medium text-text flex-1">{s.title}</span>
+                    <span className="text-text-muted text-xs">{openStep === s.step ? '▲' : '▼'}</span>
+                  </button>
+                  {openStep === s.step && (
+                    <div className="px-3 pb-3 pt-2 space-y-2 bg-card border-t border-border">
+                      <p className="text-xs text-text-muted leading-relaxed">{s.desc}</p>
+                      {s.link && (
+                        <a
+                          href={s.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-xs text-primary font-medium hover:underline"
+                        >
+                          {s.linkLabel}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-text-muted bg-surface rounded-lg px-3 py-2 leading-relaxed">
+              💡 Mientras Meta aprueba tu número, puedes usar la app normalmente — clientes, citas y reportes funcionan sin WhatsApp. Los mensajes automáticos se activarán cuando confirmes la aprobación arriba.
+            </p>
+          </>
+        )}
+
+        {status === 'active' && (
+          <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-xs text-green-700">
+            🎉 Tu WhatsApp Business está activo. Los recordatorios, cumpleaños y automatizaciones se envían normalmente.
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 export default function SettingsPage() {
   const { business, logout, setBusiness } = useAppStore()
   const [sendingReactivation, setSendingReactivation] = useState(false)
@@ -151,6 +326,14 @@ export default function SettingsPage() {
   const [followUpAutoEnabled, setFollowUpAutoEnabled] = useState(business?.follow_up_auto_enabled ?? true)
   const [savingAutomation, setSavingAutomation] = useState(false)
   const [automationMessage, setAutomationMessage] = useState(null)
+
+  // Master toggle: true si alguna está activa
+  const allEnabled = reactivationEnabled || birthdayEnabled || followUpAutoEnabled
+  const handleMasterToggle = (val) => {
+    setReactivationEnabled(val)
+    setBirthdayEnabled(val)
+    setFollowUpAutoEnabled(val)
+  }
 
   const handleSaveAutomation = async () => {
     if (inactiveDays < 1 || inactiveDays > 365) {
@@ -204,6 +387,9 @@ export default function SettingsPage() {
           <p className="text-text-muted text-xs mt-1">{business?.plan || 'free'}</p>
         </div>
 
+        {/* WhatsApp Business Setup */}
+        <WhatsAppSetupSection business={business} setBusiness={setBusiness} />
+
         <section className="space-y-3">
           <h3 className="font-semibold text-text text-sm">Clientes inactivos</h3>
           <div className="card">
@@ -235,6 +421,15 @@ export default function SettingsPage() {
         <section className="space-y-3">
           <h3 className="font-semibold text-text text-sm">Automatizaciones</h3>
           <div className="card space-y-4">
+
+            {/* Master toggle */}
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-border">
+              <div>
+                <p className="text-sm font-semibold text-text">Todas las automatizaciones</p>
+                <p className="text-xs text-text-muted">Activa o desactiva todas a la vez</p>
+              </div>
+              <Toggle enabled={allEnabled} onChange={handleMasterToggle} />
+            </div>
 
             {/* Días de inactividad */}
             <div>

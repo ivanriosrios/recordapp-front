@@ -143,12 +143,95 @@ function CompleteModal({ appt, onClose, onDone }) {
   )
 }
 
+// ─── Modal: Editar cita ────────────────────────────────────────────────────────
+
+function EditAppointmentModal({ appt, businessId, onClose, onDone }) {
+  const today = new Date().toISOString().split('T')[0]
+  const [date, setDate] = useState(appt.appointment_date || '')
+  const [time, setTime] = useState(appt.appointment_time?.slice(0, 5) || '')
+  const [notes, setNotes] = useState(appt.notes || '')
+  const [notify, setNotify] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async () => {
+    if (!date) { setError('La fecha es obligatoria'); return }
+    setSaving(true)
+    setError('')
+    try {
+      await appointmentsApi.update(businessId, appt.id, {
+        appointment_date: date,
+        appointment_time: time || null,
+        notes: notes || null,
+      }, notify)
+      onDone()
+    } catch {
+      setError('Error al actualizar la cita')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+      <div className="w-full max-w-lg bg-card rounded-t-2xl p-5 space-y-4 pb-8">
+        <div className="flex justify-center mb-1">
+          <div className="w-10 h-1 rounded-full bg-border" />
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-text text-base">Editar cita</h3>
+            <p className="text-text-muted text-sm truncate">{appt.client_name} · {appt.service_name}</p>
+          </div>
+          <button onClick={onClose} className="text-text-muted text-lg">✕</button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-sm text-text-muted">Fecha *</label>
+            <input type="date" min={today} value={date} onChange={e => setDate(e.target.value)} className="input-base w-full" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm text-text-muted">Hora (opcional)</label>
+            <input type="time" value={time} onChange={e => setTime(e.target.value)} className="input-base w-full" />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm text-text-muted">Notas (opcional)</label>
+          <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} className="input-base w-full resize-none" />
+        </div>
+
+        <div className="flex items-center justify-between py-2 border-t border-border">
+          <div>
+            <p className="text-sm font-medium text-text">Notificar al cliente</p>
+            <p className="text-xs text-text-muted">Enviar WhatsApp con la nueva fecha</p>
+          </div>
+          <button onClick={() => setNotify(!notify)} className={`relative w-12 h-6 rounded-full transition-colors ${notify ? 'bg-primary' : 'bg-border'}`}>
+            <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${notify ? 'translate-x-7' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
+        {error && <p className="text-danger text-sm">{error}</p>}
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border border-border text-text-muted text-sm font-medium">Cancelar</button>
+          <button onClick={handleSubmit} disabled={saving} className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold disabled:opacity-60">
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Modal: Nueva cita manual ─────────────────────────────────────────────────
 
 function NewAppointmentModal({ businessId, onClose, onDone }) {
   const [clients, setClients]   = useState([])
   const [services, setServices] = useState([])
   const [clientId, setClientId]   = useState('')
+  const [clientSearch, setClientSearch] = useState('')
+  const [showClientList, setShowClientList] = useState(false)
   const [serviceId, setServiceId] = useState('')
   const [date, setDate]     = useState('')
   const [time, setTime]     = useState('')
@@ -161,6 +244,15 @@ function NewAppointmentModal({ businessId, onClose, onDone }) {
     clientsApi.list(businessId).then(setClients).catch(() => {})
     servicesApi.list(businessId).then(r => setServices(Array.isArray(r) ? r : r.items ?? [])).catch(() => {})
   }, [businessId])
+
+  const filteredClients = clientSearch.trim().length > 0
+    ? clients.filter(c =>
+        c.display_name?.toLowerCase().includes(clientSearch.toLowerCase()) ||
+        c.phone?.includes(clientSearch)
+      )
+    : clients
+
+  const selectedClient = clients.find(c => c.id === clientId)
 
   const handleSubmit = async () => {
     if (!clientId || !serviceId || !date) {
@@ -199,19 +291,49 @@ function NewAppointmentModal({ businessId, onClose, onDone }) {
           <button onClick={onClose} className="text-text-muted text-lg">✕</button>
         </div>
 
-        {/* Cliente */}
+        {/* Cliente — búsqueda */}
         <div className="space-y-1">
           <label className="text-sm text-text-muted">Cliente *</label>
-          <select
-            value={clientId}
-            onChange={e => setClientId(e.target.value)}
-            className="input-base w-full"
-          >
-            <option value="">Seleccionar cliente...</option>
-            {clients.map(c => (
-              <option key={c.id} value={c.id}>{c.display_name} — {c.phone}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Buscar por nombre o teléfono..."
+              value={clientId ? (selectedClient?.display_name || clientSearch) : clientSearch}
+              onChange={e => {
+                setClientSearch(e.target.value)
+                setClientId('')
+                setShowClientList(true)
+              }}
+              onFocus={() => setShowClientList(true)}
+              className="input-base w-full pr-8"
+            />
+            {clientId && (
+              <button
+                onClick={() => { setClientId(''); setClientSearch(''); setShowClientList(false) }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-danger text-sm"
+              >✕</button>
+            )}
+          </div>
+          {showClientList && !clientId && (
+            <div className="border border-border rounded-xl bg-card shadow-md max-h-44 overflow-y-auto z-10 relative">
+              {filteredClients.length === 0 ? (
+                <p className="text-sm text-text-muted px-3 py-2">Sin resultados</p>
+              ) : filteredClients.slice(0, 30).map(c => (
+                <button
+                  key={c.id}
+                  className="w-full text-left px-3 py-2 hover:bg-surface text-sm flex items-center gap-2"
+                  onClick={() => {
+                    setClientId(c.id)
+                    setClientSearch('')
+                    setShowClientList(false)
+                  }}
+                >
+                  <span className="font-medium text-text truncate">{c.display_name}</span>
+                  <span className="text-text-muted shrink-0">{c.phone}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Servicio */}
@@ -332,25 +454,33 @@ function formatApptTime(time, shift) {
 
 // ─── Tarjeta de cita ──────────────────────────────────────────────────────────
 
-function AppointmentCard({ appt, onConfirm, onReject, onComplete, loading }) {
+function AppointmentCard({ appt, onConfirm, onReject, onComplete, onCancel, onEdit, loading }) {
   const isPending   = appt.status === 'requested'
   const isConfirmed = appt.status === 'confirmed'
+  const isActive    = isPending || isConfirmed
 
   return (
     <div className="card p-4 space-y-3">
       {/* Encabezado */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-text truncate">
-            {appt.client_name || 'Cliente'}
-          </p>
-          <p className="text-sm text-text-muted truncate">
-            {appt.service_name || '—'}
-          </p>
+          <p className="font-semibold text-text truncate">{appt.client_name || 'Cliente'}</p>
+          <p className="text-sm text-text-muted truncate">{appt.service_name || '—'}</p>
         </div>
-        <Badge variant={STATUS_VARIANT[appt.status]} className="shrink-0">
-          {STATUS_LABEL[appt.status]}
-        </Badge>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant={STATUS_VARIANT[appt.status]}>{STATUS_LABEL[appt.status]}</Badge>
+          {isActive && onEdit && (
+            <button
+              onClick={() => onEdit(appt)}
+              className="text-text-muted hover:text-primary transition-colors p-1"
+              title="Editar"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Fecha y hora */}
@@ -369,40 +499,30 @@ function AppointmentCard({ appt, onConfirm, onReject, onComplete, loading }) {
         </span>
       </div>
 
+      {/* Notas */}
+      {appt.notes && (
+        <p className="text-xs text-text-muted bg-surface rounded-lg px-3 py-2">{appt.notes}</p>
+      )}
+
       {/* Acciones */}
       {isPending && (
         <div className="flex gap-2 pt-1">
-          <Button
-            variant="primary"
-            size="sm"
-            className="flex-1"
-            loading={loading === `confirm-${appt.id}`}
-            onClick={() => onConfirm(appt.id)}
-          >
+          <Button variant="primary" size="sm" className="flex-1" loading={loading === `confirm-${appt.id}`} onClick={() => onConfirm(appt.id)}>
             Confirmar
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            loading={loading === `reject-${appt.id}`}
-            onClick={() => onReject(appt.id)}
-          >
+          <Button variant="outline" size="sm" className="flex-1" loading={loading === `reject-${appt.id}`} onClick={() => onReject(appt.id)}>
             Rechazar
           </Button>
         </div>
       )}
 
       {isConfirmed && (
-        <div className="pt-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            loading={loading === `complete-${appt.id}`}
-            onClick={() => onComplete(appt.id)}
-          >
-            Marcar como completada
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" size="sm" className="flex-1" loading={loading === `complete-${appt.id}`} onClick={() => onComplete(appt.id)}>
+            ✅ Completar
+          </Button>
+          <Button variant="danger" size="sm" className="flex-1" loading={loading === `cancel-${appt.id}`} onClick={() => onCancel && onCancel(appt.id)}>
+            ✕ Cancelar
           </Button>
         </div>
       )}
@@ -419,6 +539,7 @@ function PendingTab({ businessId }) {
   const [error, setError] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [completeTarget, setCompleteTarget] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -446,6 +567,13 @@ function PendingTab({ businessId }) {
     setActionLoading(`reject-${id}`)
     try { await appointmentsApi.reject(businessId, id); load() }
     catch { setError('Error rechazando cita') }
+    finally { setActionLoading(null) }
+  }
+
+  const handleCancel = async (id) => {
+    setActionLoading(`cancel-${id}`)
+    try { await appointmentsApi.cancel(businessId, id); load() }
+    catch { setError('Error cancelando cita') }
     finally { setActionLoading(null) }
   }
 
@@ -479,6 +607,8 @@ function PendingTab({ businessId }) {
               onConfirm={handleConfirm}
               onReject={handleReject}
               onComplete={() => {}}
+              onCancel={handleCancel}
+              onEdit={(a) => setEditTarget(a)}
               loading={actionLoading}
             />
           ))}
@@ -498,6 +628,8 @@ function PendingTab({ businessId }) {
               onConfirm={() => {}}
               onReject={() => {}}
               onComplete={() => setCompleteTarget(appt)}
+              onCancel={handleCancel}
+              onEdit={(a) => setEditTarget(a)}
               loading={actionLoading}
             />
           ))}
@@ -528,6 +660,14 @@ function PendingTab({ businessId }) {
           onDone={() => { setCompleteTarget(null); load() }}
         />
       )}
+      {editTarget && (
+        <EditAppointmentModal
+          appt={editTarget}
+          businessId={businessId}
+          onClose={() => setEditTarget(null)}
+          onDone={() => { setEditTarget(null); load() }}
+        />
+      )}
     </div>
   )
 }
@@ -547,7 +687,8 @@ function AllAppointmentsTab({ businessId }) {
   const [actionLoading, setActionLoading] = useState(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState('')
-  const [completeTarget, setCompleteTarget] = useState(null)  // appt a completar
+  const [completeTarget, setCompleteTarget] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -562,8 +703,13 @@ function AllAppointmentsTab({ businessId }) {
 
   useEffect(() => { load() }, [load])
 
-  const handleComplete = (appt) => {
-    setCompleteTarget(appt)
+  const handleComplete = (appt) => setCompleteTarget(appt)
+
+  const handleCancel = async (id) => {
+    setActionLoading(`cancel-${id}`)
+    try { await appointmentsApi.cancel(businessId, id); load() }
+    catch { setError('Error cancelando cita') }
+    finally { setActionLoading(null) }
   }
 
   return (
@@ -603,6 +749,8 @@ function AllAppointmentsTab({ businessId }) {
             onConfirm={() => {}}
             onReject={() => {}}
             onComplete={() => handleComplete(appt)}
+            onCancel={handleCancel}
+            onEdit={(a) => setEditTarget(a)}
             loading={actionLoading}
           />
         ))
@@ -613,6 +761,14 @@ function AllAppointmentsTab({ businessId }) {
           appt={completeTarget}
           onClose={() => setCompleteTarget(null)}
           onDone={() => { setCompleteTarget(null); load() }}
+        />
+      )}
+      {editTarget && (
+        <EditAppointmentModal
+          appt={editTarget}
+          businessId={businessId}
+          onClose={() => setEditTarget(null)}
+          onDone={() => { setEditTarget(null); load() }}
         />
       )}
     </div>
