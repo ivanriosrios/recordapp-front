@@ -139,175 +139,86 @@ function HelpAccordion() {
   )
 }
 
-// ─── WhatsApp Setup ────────────────────────────────────────────────────────────
+// ─── WhatsApp Status ───────────────────────────────────────────────────────────
 
-const WA_STATUS_CONFIG = {
+const WA_STATUS = {
   not_configured: {
-    color: 'bg-orange-100 text-orange-700 border-orange-200',
-    dot: 'bg-orange-400',
-    label: 'Sin configurar',
-    icon: '⚠️',
+    icon: '⏳',
+    title: 'Configurando tu WhatsApp',
+    desc: 'Estamos registrando tu número en el sistema. Normalmente esto tarda menos de un día hábil. No necesitas hacer nada más.',
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    titleColor: 'text-amber-800',
+    descColor: 'text-amber-700',
+    dot: 'bg-amber-400',
+    badge: 'En configuración',
+    badgeColor: 'bg-amber-100 text-amber-700 border-amber-200',
   },
-  sandbox: {
-    color: 'bg-blue-50 text-blue-700 border-blue-200',
+  pending: {
+    icon: '🔄',
+    title: 'Esperando aprobación de Meta',
+    desc: 'Tu número fue enviado a Meta para aprobación. Este proceso toma entre 1 y 3 días hábiles. Te avisaremos cuando esté listo. Ya puedes usar toda la app con normalidad.',
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    titleColor: 'text-blue-800',
+    descColor: 'text-blue-700',
     dot: 'bg-blue-400',
-    label: 'Sandbox activo',
-    icon: '🧪',
+    badge: 'Pendiente Meta',
+    badgeColor: 'bg-blue-100 text-blue-700 border-blue-200',
   },
   active: {
-    color: 'bg-green-50 text-green-700 border-green-200',
-    dot: 'bg-green-400',
-    label: 'WhatsApp activo',
     icon: '✅',
+    title: '¡WhatsApp activo!',
+    desc: 'Tu número está aprobado y activo. Los recordatorios, cumpleaños, encuestas y mensajes automáticos se envían normalmente.',
+    bg: 'bg-green-50',
+    border: 'border-green-200',
+    titleColor: 'text-green-800',
+    descColor: 'text-green-700',
+    dot: 'bg-green-400',
+    badge: 'Activo',
+    badgeColor: 'bg-green-100 text-green-700 border-green-200',
   },
 }
 
-const WA_STEPS = [
-  {
-    step: 1,
-    title: 'Crea tu cuenta Twilio',
-    desc: 'Ve a twilio.com y regístrate. Elige el balance inicial ($20 es suficiente para empezar).',
-    link: 'https://www.twilio.com/try-twilio',
-    linkLabel: 'Ir a Twilio →',
-    statuses: ['not_configured', 'sandbox', 'active'],
-  },
-  {
-    step: 2,
-    title: 'Activa el Sandbox de WhatsApp',
-    desc: 'En Twilio Console → Messaging → Try it out → Send a WhatsApp message. Conecta tu celular enviando el código de sandbox al número indicado. Úsalo para probar mientras Meta aprueba.',
-    link: 'https://console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn',
-    linkLabel: 'Abrir Sandbox →',
-    statuses: ['not_configured', 'sandbox'],
-  },
-  {
-    step: 3,
-    title: 'Solicita acceso a WhatsApp Business API',
-    desc: 'En Twilio Console → Messaging → Senders → WhatsApp senders → Request access. Necesitas un número dedicado y una cuenta de Facebook Business verificada. Meta tarda 1–3 días en aprobar.',
-    link: 'https://console.twilio.com/us1/develop/sms/senders/whatsapp-senders',
-    linkLabel: 'Solicitar acceso →',
-    statuses: ['not_configured', 'sandbox'],
-  },
-  {
-    step: 4,
-    title: 'Configura las variables en Railway',
-    desc: 'Una vez aprobado, copia el Account SID, Auth Token y tu número de WhatsApp Business de Twilio Console y agrégalos como variables de entorno en tu servicio de Railway.',
-    statuses: ['sandbox'],
-  },
-]
-
-function WhatsAppSetupSection({ business, setBusiness }) {
+function WhatsAppSetupSection({ business }) {
   const status = business?.whatsapp_status || 'not_configured'
-  const cfg = WA_STATUS_CONFIG[status]
-  const [saving, setSaving] = useState(false)
-  const [openStep, setOpenStep] = useState(null)
-
-  const handleStatusChange = async (newStatus) => {
-    setSaving(true)
-    try {
-      const updated = await businessesApi.update(business.id, { whatsapp_status: newStatus })
-      setBusiness?.(updated)
-    } catch { /* silencioso */ }
-    finally { setSaving(false) }
-  }
-
-  const visibleSteps = WA_STEPS.filter(s => s.statuses.includes(status))
+  const cfg = WA_STATUS[status] || WA_STATUS.not_configured
 
   return (
     <section className="space-y-3">
       <h3 className="font-semibold text-text text-sm">WhatsApp Business</h3>
-      <div className="card space-y-4">
-        {/* Estado actual */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="text-lg">{cfg.icon}</span>
-            <div>
-              <p className="text-sm font-semibold text-text">Estado actual</p>
-              <span className={`inline-flex items-center gap-1.5 mt-0.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${cfg.color}`}>
+      <div className={`rounded-2xl border p-4 space-y-3 ${cfg.bg} ${cfg.border}`}>
+        {/* Cabecera */}
+        <div className="flex items-start gap-3">
+          <span className="text-2xl mt-0.5">{cfg.icon}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className={`text-sm font-bold ${cfg.titleColor}`}>{cfg.title}</p>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.badgeColor}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                {cfg.label}
+                {cfg.badge}
               </span>
             </div>
+            <p className={`text-xs mt-1 leading-relaxed ${cfg.descColor}`}>{cfg.desc}</p>
           </div>
-          {/* Selector rápido de estado */}
-          {status !== 'active' && (
-            <div className="flex flex-col gap-1">
-              {status === 'not_configured' && (
-                <button
-                  onClick={() => handleStatusChange('sandbox')}
-                  disabled={saving}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-medium disabled:opacity-60"
-                >
-                  {saving ? '...' : 'Ya tengo Sandbox'}
-                </button>
-              )}
-              <button
-                onClick={() => handleStatusChange('active')}
-                disabled={saving}
-                className="text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200 font-medium disabled:opacity-60"
-              >
-                {saving ? '...' : 'Meta me aprobó ✅'}
-              </button>
-            </div>
-          )}
-          {status === 'active' && (
-            <button
-              onClick={() => handleStatusChange('not_configured')}
-              disabled={saving}
-              className="text-xs px-2.5 py-1 rounded-lg bg-surface text-text-muted border border-border font-medium disabled:opacity-60"
-            >
-              Reconfigurar
-            </button>
-          )}
         </div>
 
-        {/* Pasos según estado */}
-        {status !== 'active' && (
-          <>
-            <div className="border-t border-border" />
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-                {status === 'not_configured' ? 'Pasos para activar' : 'Pendiente de aprobación'}
-              </p>
-              {visibleSteps.map(s => (
-                <div key={s.step} className="rounded-xl border border-border overflow-hidden">
-                  <button
-                    onClick={() => setOpenStep(openStep === s.step ? null : s.step)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left bg-surface"
-                  >
-                    <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
-                      {s.step}
-                    </span>
-                    <span className="text-sm font-medium text-text flex-1">{s.title}</span>
-                    <span className="text-text-muted text-xs">{openStep === s.step ? '▲' : '▼'}</span>
-                  </button>
-                  {openStep === s.step && (
-                    <div className="px-3 pb-3 pt-2 space-y-2 bg-card border-t border-border">
-                      <p className="text-xs text-text-muted leading-relaxed">{s.desc}</p>
-                      {s.link && (
-                        <a
-                          href={s.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center text-xs text-primary font-medium hover:underline"
-                        >
-                          {s.linkLabel}
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+        {/* Número registrado */}
+        {business?.whatsapp_phone && (
+          <div className={`flex items-center gap-2 pt-2 border-t ${cfg.border}`}>
+            <span className="text-base">📱</span>
+            <div>
+              <p className={`text-xs font-medium ${cfg.titleColor}`}>Número registrado</p>
+              <p className={`text-xs font-mono ${cfg.descColor}`}>+{business.whatsapp_phone}</p>
             </div>
-            <p className="text-xs text-text-muted bg-surface rounded-lg px-3 py-2 leading-relaxed">
-              💡 Mientras Meta aprueba tu número, puedes usar la app normalmente — clientes, citas y reportes funcionan sin WhatsApp. Los mensajes automáticos se activarán cuando confirmes la aprobación arriba.
-            </p>
-          </>
+          </div>
         )}
 
-        {status === 'active' && (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-xs text-green-700">
-            🎉 Tu WhatsApp Business está activo. Los recordatorios, cumpleaños y automatizaciones se envían normalmente.
-          </div>
+        {/* Nota de soporte solo si no está activo */}
+        {status !== 'active' && (
+          <p className={`text-xs ${cfg.descColor} opacity-75`}>
+            ¿Tienes alguna duda? Contáctanos por soporte y te ayudamos.
+          </p>
         )}
       </div>
     </section>
@@ -387,8 +298,8 @@ export default function SettingsPage() {
           <p className="text-text-muted text-xs mt-1">{business?.plan || 'free'}</p>
         </div>
 
-        {/* WhatsApp Business Setup */}
-        <WhatsAppSetupSection business={business} setBusiness={setBusiness} />
+        {/* WhatsApp Business */}
+        <WhatsAppSetupSection business={business} />
 
         <section className="space-y-3">
           <h3 className="font-semibold text-text text-sm">Clientes inactivos</h3>
