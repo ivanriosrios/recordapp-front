@@ -1,6 +1,6 @@
 {
-  "name": "RecordApp",
-  "short_name": "RecordApp",
+  "name": "OlaApp",
+  "short_name": "OlaApp",
   "description": "Recordatorios automáticos por WhatsApp para tu negocio",
   "start_url": "/",
   "display": "standalone",

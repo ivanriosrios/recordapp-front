@@ -39,9 +39,9 @@ function Step1({ value, onChange, onNext }) {
   return (
     <div className="fade-in">
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">📋</div>
-        <h1 className="text-2xl font-bold text-text mb-2">Bienvenido a RecordApp</h1>
-        <p className="text-text-muted text-sm">Automatiza tus recordatorios por WhatsApp</p>
+        <div className="text-5xl mb-4">👋</div>
+        <h1 className="text-2xl font-bold text-text mb-2">Bienvenido a OlaApp</h1>
+        <p className="text-text-muted text-sm">Haz que tus clientes siempre vuelvan</p>
       </div>
 
       <Input

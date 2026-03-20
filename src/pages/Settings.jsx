@@ -516,7 +516,7 @@ export default function SettingsPage() {
               ¿Tienes dudas o problemas? Escríbenos por WhatsApp.
             </p>
             <a
-              href={`https://wa.me/${import.meta.env.VITE_SUPPORT_PHONE || '573145672689'}?text=${encodeURIComponent('Hola, necesito ayuda con RecordApp')}`}
+              href={`https://wa.me/${import.meta.env.VITE_SUPPORT_PHONE || '573145672689'}?text=${encodeURIComponent('Hola, necesito ayuda con OlaApp')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#25D366] text-white text-sm font-medium"

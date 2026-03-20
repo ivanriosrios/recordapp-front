@@ -30,9 +30,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col justify-center px-6 py-10">
       <div className="text-center mb-8">
-        <div className="text-5xl mb-4">📋</div>
-        <h1 className="text-2xl font-bold text-text mb-2">Iniciar sesión</h1>
-        <p className="text-text-muted text-sm">Ingresa a tu cuenta de RecordApp</p>
+        <div className="text-5xl mb-4">👋</div>
+        <h1 className="text-2xl font-bold text-text mb-2">OlaApp</h1>
+        <p className="text-text-muted text-sm">Ingresa a tu cuenta</p>
       </div>
 
       <form onSubmit={handleSubmit}>
