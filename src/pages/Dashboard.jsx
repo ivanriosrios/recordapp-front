@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { clientsApi, remindersApi, notificationsApi, appointmentsApi, reportsApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
-import { daysSince, formatDate } from '../utils/format'
+import { formatDate } from '../utils/format'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -197,39 +198,59 @@ function QuickAction({ icon, label, color, bg, onClick }) {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { business, clients, setClients } = useAppStore()
-  const [reminders, setReminders] = useState([])
-  const [todayAppts, setTodayAppts] = useState([])
-  const [unreadNotifications, setUnreadNotifications] = useState(0)
-  const [revenue, setRevenue] = useState(null)
-  const [growth, setGrowth] = useState(0)
-  const [period] = useState('month')
-  const [loading, setLoading] = useState(true)
+  const { business, setClients } = useAppStore()
+  const period = 'month'
+  const businessId = business?.id
+  const today = new Date().toISOString().slice(0, 10)
 
+  const clientsQ = useQuery({
+    queryKey: ['clients', businessId],
+    queryFn: () => clientsApi.list(businessId),
+    enabled: !!businessId,
+  })
+  // Hidrata el store global para que el resto de páginas que aún leen
+  // de Zustand sigan funcionando sin refetch.
   useEffect(() => {
-    if (!business?.id) return
-    const today = new Date().toISOString().slice(0, 10)
-    Promise.all([
-      clientsApi.list(business.id),
-      remindersApi.list(business.id, { upcoming_days: 7 }),
-      notificationsApi.unreadCount(business.id),
-      appointmentsApi.list(business.id, { from_date: today, to_date: today }).catch(() => []),
-      reportsApi.income(business.id, { period }).catch(() => null),
-    ]).then(([c, r, notifs, appts, rep]) => {
-      setClients(c)
-      setReminders(r)
-      setUnreadNotifications(notifs.count)
-      setTodayAppts(Array.isArray(appts) ? appts : [])
-      if (rep) {
-        setRevenue(rep.total_revenue)
-        setGrowth(rep.growth_pct ?? 0)
-      }
-    }).finally(() => setLoading(false))
-  }, [business?.id])
+    if (clientsQ.data) setClients(clientsQ.data)
+  }, [clientsQ.data, setClients])
+  const remindersQ = useQuery({
+    queryKey: ['reminders', businessId, { upcoming_days: 7 }],
+    queryFn: () => remindersApi.list(businessId, { upcoming_days: 7 }),
+    enabled: !!businessId,
+  })
+  const notifsQ = useQuery({
+    queryKey: ['notif-unread', businessId],
+    queryFn: () => notificationsApi.unreadCount(businessId),
+    enabled: !!businessId,
+    refetchInterval: 60_000,
+  })
+  const apptsQ = useQuery({
+    queryKey: ['appointments-today', businessId, today],
+    queryFn: () => appointmentsApi.list(businessId, { from_date: today, to_date: today }),
+    enabled: !!businessId,
+  })
+  const incomeQ = useQuery({
+    queryKey: ['income', businessId, period],
+    queryFn: () => reportsApi.income(businessId, { period }),
+    enabled: !!businessId,
+  })
+  const atRiskQ = useQuery({
+    queryKey: ['at-risk', businessId],
+    queryFn: () => clientsApi.atRisk(businessId, { days: 60, limit: 10 }),
+    enabled: !!businessId,
+  })
 
-  const atRisk = clients.filter((c) => daysSince(c.updated_at) > 60 && c.status === 'active')
+  const clients = clientsQ.data ?? []
+  const reminders = remindersQ.data ?? []
+  const todayAppts = Array.isArray(apptsQ.data) ? apptsQ.data : []
+  const unreadNotifications = notifsQ.data?.count ?? 0
+  const revenue = incomeQ.data?.total_revenue ?? null
+  const growth = incomeQ.data?.growth_pct ?? 0
+  const atRisk = atRiskQ.data ?? []
+  const loading =
+    clientsQ.isLoading || remindersQ.isLoading || apptsQ.isLoading || incomeQ.isLoading
+
   const activeClients = clients.filter((c) => c.status === 'active').length
-  const upcomingCount = reminders.filter((r) => r.status === 'active').length
 
   return (
     <div style={{ paddingBottom: 90 }}>
@@ -385,7 +406,9 @@ export default function DashboardPage() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {atRisk.slice(0, 3).map((c) => {
-                const dias = daysSince(c.updated_at)
+                const dias = c.days_since
+                const diasLabel = dias == null ? 'Nunca atendido' : `Sin visita hace ${dias} días`
+                const badge = dias == null ? 'N/A' : `${dias}d`
                 return (
                   <button
                     key={c.id}
@@ -412,14 +435,14 @@ export default function DashboardPage() {
                         {c.display_name}
                       </p>
                       <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
-                        Sin visita hace {dias} días
+                        {diasLabel}
                       </p>
                     </div>
                     <span style={{
                       fontSize: 11, fontWeight: 700, color: '#ef4444',
                       background: 'rgba(239,68,68,0.12)', borderRadius: 999,
                       padding: '2px 8px', flexShrink: 0,
-                    }}>{dias}d</span>
+                    }}>{badge}</span>
                   </button>
                 )
               })}
