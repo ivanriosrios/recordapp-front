@@ -13,6 +13,9 @@ import NotificationsPage from './pages/Notifications'
 import ClientHistoryPage from './pages/ClientHistory'
 import AppointmentsPage from './pages/Appointments'
 import ReportsPage from './pages/Reports'
+import BillingPage from './pages/Billing'
+import AdminPage from './pages/Admin'
+import WizardPage from './pages/Wizard'
 import BottomNav from './components/layout/BottomNav'
 
 function AppShell({ children }) {
@@ -38,6 +41,9 @@ function AuthenticatedLayout() {
           <Route path="/services/*" element={<ServiceHistoryPage />} />
           <Route path="/appointments/*" element={<AppointmentsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/billing" element={<BillingPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/welcome" element={<WizardPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

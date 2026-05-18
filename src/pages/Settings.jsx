@@ -440,6 +440,23 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        <section className="mt-4 mb-2 flex flex-col gap-2">
+          <button
+            onClick={() => window.location.assign('/billing')}
+            className="w-full text-left rounded-xl px-4 py-3 text-sm font-medium"
+            style={{ background: '#1e2235', border: '1px solid #2d3148', color: '#e2e8f0' }}
+          >
+            💳 Mi suscripción
+          </button>
+          <button
+            onClick={() => window.location.assign('/admin')}
+            className="w-full text-left rounded-xl px-4 py-3 text-sm font-medium"
+            style={{ background: '#1e2235', border: '1px solid #2d3148', color: '#e2e8f0' }}
+          >
+            🛠️ Panel admin (super-admin)
+          </button>
+        </section>
+
         <Button variant="danger" onClick={logout}>
           Cerrar sesión
         </Button>

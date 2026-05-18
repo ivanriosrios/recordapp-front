@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clientsApi, remindersApi, notificationsApi, appointmentsApi, reportsApi } from '../api'
 import { useAppStore } from '../store/useAppStore'
 import { formatDate } from '../utils/format'
+import ValueDashboard from '../components/ValueDashboard'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -347,6 +348,33 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Banner setup pendiente ── */}
+      {!loading && clients.length === 0 && !localStorage.getItem(`wizard_completed_${business?.id}`) && (
+        <div
+          onClick={() => navigate('/welcome')}
+          style={{
+            margin: '0 20px 12px',
+            padding: '12px 14px',
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.18))',
+            border: '1px solid rgba(99,102,241,0.35)',
+            display: 'flex', alignItems: 'center', gap: 10,
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: 22 }}>🎯</span>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
+              Termina tu configuración en 3 minutos
+            </p>
+            <p style={{ fontSize: 11, color: '#a5b4fc', margin: 0, marginTop: 1 }}>
+              Crea tu primer servicio, cliente y manda un mensaje de prueba.
+            </p>
+          </div>
+          <span style={{ fontSize: 16, color: '#a5b4fc' }}>›</span>
+        </div>
+      )}
+
       {/* ── Revenue hero ── */}
       <RevenueHero revenue={revenue} growth={growth} period={period} loading={loading} />
 
@@ -373,6 +401,9 @@ export default function DashboardPage() {
       </div>
 
       <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* ── Valor RecordApp ── */}
+        <ValueDashboard businessId={businessId} period={period} />
 
         {/* ── Citas de hoy ── */}
         {(loading || todayAppts.length > 0) && (

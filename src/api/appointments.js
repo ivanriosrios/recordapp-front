@@ -24,6 +24,12 @@ export const appointmentsApi = {
 
   update: (businessId, appointmentId, data, notify = true) =>
     api.patch(`/businesses/${businessId}/appointments/${appointmentId}`, data, { params: { notify } }),
+
+  markNoShow: (businessId, appointmentId) =>
+    api.post(`/businesses/${businessId}/appointments/${appointmentId}/mark-no-show`),
+
+  createDeposit: (businessId, appointmentId, { amount, currency = 'USD' }) =>
+    api.post(`/businesses/${businessId}/appointments/${appointmentId}/create-deposit`, { amount, currency }),
 }
 
 export const scheduleApi = {
