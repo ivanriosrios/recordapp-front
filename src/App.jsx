@@ -16,6 +16,7 @@ import ReportsPage from './pages/Reports'
 import BillingPage from './pages/Billing'
 import AdminPage from './pages/Admin'
 import WizardPage from './pages/Wizard'
+import WaitlistPage from './pages/Waitlist'
 import BottomNav from './components/layout/BottomNav'
 
 function AppShell({ children }) {
@@ -44,6 +45,7 @@ function AuthenticatedLayout() {
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/welcome" element={<WizardPage />} />
+          <Route path="/waitlist" element={<WaitlistPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

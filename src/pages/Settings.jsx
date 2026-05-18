@@ -449,6 +449,13 @@ export default function SettingsPage() {
             💳 Mi suscripción
           </button>
           <button
+            onClick={() => window.location.assign('/waitlist')}
+            className="w-full text-left rounded-xl px-4 py-3 text-sm font-medium"
+            style={{ background: '#1e2235', border: '1px solid #2d3148', color: '#e2e8f0' }}
+          >
+            📋 Lista de espera
+          </button>
+          <button
             onClick={() => window.location.assign('/admin')}
             className="w-full text-left rounded-xl px-4 py-3 text-sm font-medium"
             style={{ background: '#1e2235', border: '1px solid #2d3148', color: '#e2e8f0' }}

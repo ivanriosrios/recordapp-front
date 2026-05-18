@@ -39,14 +39,20 @@ export default function ValueDashboard({ businessId, period = 'month' }) {
         🎯 Valor RecordApp {periodLabel && `(${periodLabel})`}
       </h2>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
         <Card
           color="#ef4444"
           icon="🚫"
           label="No-shows"
           value={pct(d.no_show_rate)}
           sub={`${d.no_shows || 0} de ${d.total_appointments || 0}`}
-          hint={d.total_appointments === 0 ? 'sin citas aún' : 'menor es mejor'}
+        />
+        <Card
+          color="#10b981"
+          icon="♻️"
+          label="Cupos rescatados"
+          value={String(d.rescued_slots || 0)}
+          sub="por waitlist"
         />
         <Card
           color="#8b5cf6"
@@ -54,22 +60,20 @@ export default function ValueDashboard({ businessId, period = 'month' }) {
           label="Reactivados"
           value={String(d.reactivated_clients || 0)}
           sub="clientes"
-          hint="vinieron tras un recordatorio"
         />
         <Card
-          color="#10b981"
+          color="#f59e0b"
           icon="💰"
           label="Atribuido"
           value={fmtMoney(d.attributed_revenue)}
           sub={`de ${fmtMoney(d.total_revenue)}`}
-          hint="ingresos influenciados"
         />
       </div>
     </section>
   )
 }
 
-function Card({ color, icon, label, value, sub, hint }) {
+function Card({ color, icon, label, value, sub }) {
   return (
     <div style={{
       background: '#1e2235', border: '1px solid #2d3148',
